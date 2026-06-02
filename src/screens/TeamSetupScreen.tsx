@@ -1,18 +1,26 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { ActivityIndicator, View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
-import { useTeam } from '../services/teamContext';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../../firebase-config';
+import { useFirebaseAuth } from '../services/authService';
+import { Team, useTeam } from '../services/teamContext';
 
 interface Props { onNext: () => void; }
 
 export function TeamSetupScreen({ onNext }: Props) {
   const { t } = useTranslation();
+  const { signUp } = useFirebaseAuth();
   const { setTeam } = useTeam();
   
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [teamName, setTeamName] = useState('');
   const [members, setMembers] = useState<string[]>(['']);
   const [yearLevel, setYearLevel] = useState('');
   const [newMemberName, setNewMemberName] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleAddMember = () => {
     if (newMemberName.trim()) {
@@ -32,21 +40,45 @@ export function TeamSetupScreen({ onNext }: Props) {
   };
 
   const handleContinue = async () => {
-    if (!teamName.trim()) return;
+    const cleanEmail = email.trim();
+    const cleanTeamName = teamName.trim();
+    if (!cleanEmail || !password || !cleanTeamName) {
+      setError('Please enter an email, password, and team name.');
+      return;
+    }
+
+    setLoading(true);
+    setError('');
     
     const cleanMembers = members.filter((m) => m.trim() !== '');
-    const generatedId = `${teamName.trim()} #${Math.floor(1000 + Math.random() * 9000)}`;
-    
-    await setTeam({
-      id: generatedId,
-      teamId: generatedId,
-      teamName: teamName.trim(),
-      members: cleanMembers,
-      yearLevel: yearLevel.trim(),
-    });
-    
-    onNext();
+    const generatedId = `${cleanTeamName} #${Math.floor(1000 + Math.random() * 9000)}`;
+
+    try {
+      const credential = await signUp(cleanEmail, password);
+
+      const newTeam: Team = {
+        id: generatedId,
+        teamId: generatedId,
+        teamName: cleanTeamName,
+        members: cleanMembers,
+        yearLevel: yearLevel.trim(),
+        ownerUid: credential.user.uid,
+        ownerEmail: credential.user.email,
+      };
+
+      await setDoc(doc(db, 'teams', newTeam.id), newTeam);
+      await setTeam(newTeam);
+      
+      onNext();
+    } catch (e) {
+      console.error('Team setup error:', e);
+      setError('Could not create your account. Check the email, password, and connection.');
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const disabled = loading || !email.trim() || !password || !teamName.trim();
 
   return (
     <View style={styles.container}>
@@ -56,12 +88,52 @@ export function TeamSetupScreen({ onNext }: Props) {
       </View>
 
       <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
+        <Text style={styles.label}>Email</Text>
+        <TextInput
+          style={styles.input}
+          value={email}
+          onChangeText={(text) => {
+            setEmail(text);
+            if (error) setError('');
+          }}
+          placeholder="you@example.com"
+          placeholderTextColor="#9ca3af"
+          autoCapitalize="none"
+          autoComplete="email"
+          autoCorrect={false}
+          editable={!loading}
+          keyboardType="email-address"
+          textContentType="emailAddress"
+        />
+
+        <Text style={styles.label}>Password</Text>
+        <TextInput
+          style={styles.input}
+          value={password}
+          onChangeText={(text) => {
+            setPassword(text);
+            if (error) setError('');
+          }}
+          placeholder="At least 6 characters"
+          placeholderTextColor="#9ca3af"
+          autoCapitalize="none"
+          autoComplete="password"
+          autoCorrect={false}
+          editable={!loading}
+          secureTextEntry
+          textContentType="newPassword"
+        />
+
         <Text style={styles.label}>{t('common.teamName')}</Text>
         <TextInput 
           style={styles.input} 
           value={teamName} 
-          onChangeText={setTeamName} 
+          onChangeText={(text) => {
+            setTeamName(text);
+            if (error) setError('');
+          }}
           placeholder="Enter team name"
+          editable={!loading}
         />
 
         <View style={styles.rowHeader}>
@@ -100,16 +172,27 @@ export function TeamSetupScreen({ onNext }: Props) {
           onChangeText={setYearLevel}
           keyboardType="numeric"
           placeholder="7"
+          editable={!loading}
         />
+
+        {error ? (
+          <View style={styles.errorBox}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
       </ScrollView>
 
       <TouchableOpacity 
-        style={[styles.btn, !teamName.trim() && { opacity: 0.6 }]} 
+        style={[styles.btn, disabled && { opacity: 0.6 }]} 
         onPress={handleContinue} 
-        disabled={!teamName.trim()}
+        disabled={disabled}
         activeOpacity={0.85}
       >
-        <Text style={styles.btnText}>{t('onboarding.continue')}</Text>
+        {loading ? (
+          <ActivityIndicator color="#fff" size="small" />
+        ) : (
+          <Text style={styles.btnText}>{t('onboarding.continue')}</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -123,6 +206,8 @@ const styles = StyleSheet.create({
   form: { flex: 1 },
   label: { fontSize: 16, color: '#2F3E46', fontWeight: '800', marginBottom: 6 },
   input: { borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#f9fafb', color: '#2F3E46', marginBottom: 12, fontSize: 16 },
+  errorBox: { backgroundColor: '#fee2e2', borderRadius: 10, marginBottom: 16, padding: 12 },
+  errorText: { color: '#dc2626', fontSize: 14, fontWeight: '600' },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   addIcon: { fontSize: 22, color: '#0074D9', fontWeight: '900', paddingHorizontal: 8 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },

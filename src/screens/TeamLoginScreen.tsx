@@ -3,6 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import { useTranslation } from 'react-i18next';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../../firebase-config';
+import { useFirebaseAuth } from '../services/authService';
 import { useTeam, Team } from '../services/teamContext';
 
 interface Props {
@@ -12,16 +13,20 @@ interface Props {
 
 export function TeamLoginScreen({ onBack, onSuccess }: Props) {
   const { t } = useTranslation();
+  const { signIn, loading: authLoading } = useFirebaseAuth();
   const { setTeam } = useTeam();
 
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [teamCode, setTeamCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   const handleLogin = async () => {
+    const cleanEmail = email.trim();
     const code = teamCode.trim();
-    if (!code) {
-      setError('Please enter your team code.');
+    if (!cleanEmail || !password || !code) {
+      setError('Please enter your email, password, and team code.');
       return;
     }
 
@@ -29,9 +34,15 @@ export function TeamLoginScreen({ onBack, onSuccess }: Props) {
     setError('');
 
     try {
+      const credential = await signIn(cleanEmail, password);
+
       // Query Firestore for a team whose teamId matches the entered code
       const teamsRef = collection(db, 'teams');
-      const q = query(teamsRef, where('teamId', '==', code));
+      const q = query(
+        teamsRef,
+        where('teamId', '==', code),
+        where('ownerUid', '==', credential.user.uid)
+      );
       const snapshot = await getDocs(q);
 
       if (snapshot.empty) {
@@ -46,15 +57,17 @@ export function TeamLoginScreen({ onBack, onSuccess }: Props) {
 
       // Load the team into context (saves to SQLite + AsyncStorage + state)
       await setTeam(teamData);
-      console.log('Team login successful:', teamData.teamId);
+      console.log('Authenticated team login successful:', teamData.teamId);
       onSuccess();
     } catch (e) {
       console.error('Login error:', e);
-      setError('Something went wrong. Please check your connection and try again.');
+      setError('Sign in failed. Check your email, password, team code, and connection.');
     } finally {
       setLoading(false);
     }
   };
+
+  const disabled = authLoading || loading || !email.trim() || !password || !teamCode.trim();
 
   return (
     <KeyboardAvoidingView
@@ -68,10 +81,46 @@ export function TeamLoginScreen({ onBack, onSuccess }: Props) {
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>Welcome Back</Text>
-          <Text style={styles.subtitle}>Enter your team code to access your account</Text>
+          <Text style={styles.subtitle}>Sign in with your Firebase account and team code</Text>
         </View>
 
         <View style={styles.form}>
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              if (error) setError('');
+            }}
+            placeholder="you@example.com"
+            placeholderTextColor="#9ca3af"
+            autoCapitalize="none"
+            autoComplete="email"
+            autoCorrect={false}
+            editable={!loading}
+            keyboardType="email-address"
+            textContentType="emailAddress"
+          />
+
+          <Text style={styles.label}>Password</Text>
+          <TextInput
+            style={styles.input}
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              if (error) setError('');
+            }}
+            placeholder="Password"
+            placeholderTextColor="#9ca3af"
+            autoCapitalize="none"
+            autoComplete="password"
+            autoCorrect={false}
+            editable={!loading}
+            secureTextEntry
+            textContentType="password"
+          />
+
           <Text style={styles.label}>Team Code</Text>
           <TextInput
             style={styles.input}
@@ -94,9 +143,9 @@ export function TeamLoginScreen({ onBack, onSuccess }: Props) {
           ) : null}
 
           <TouchableOpacity
-            style={[styles.loginBtn, (!teamCode.trim() || loading) && { opacity: 0.6 }]}
+            style={[styles.loginBtn, disabled && { opacity: 0.6 }]}
             onPress={handleLogin}
-            disabled={!teamCode.trim() || loading}
+            disabled={disabled}
             activeOpacity={0.85}
           >
             {loading ? (
@@ -109,7 +158,7 @@ export function TeamLoginScreen({ onBack, onSuccess }: Props) {
 
         <View style={styles.helpBox}>
           <Text style={styles.helpText}>
-            Your team code was shown when you first created your team.{'\n'}
+            Use the email/password enabled in Firebase Authentication.{'\n'}
             It looks like: <Text style={styles.helpBold}>TeamName #1234</Text>
           </Text>
         </View>

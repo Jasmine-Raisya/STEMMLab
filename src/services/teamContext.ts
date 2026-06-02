@@ -1,8 +1,8 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, setDoc } from 'firebase/firestore';
+import { auth, db } from '../../firebase-config';
 import { getTeamLocal, saveTeamLocal } from './localDb';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { db } from '../../firebase-config';
 
 export interface Team {
   id: string;
@@ -10,6 +10,8 @@ export interface Team {
   teamName: string;
   members: string[];
   yearLevel: string;
+  ownerUid?: string;
+  ownerEmail?: string | null;
 }
 
 interface TeamContextType {
@@ -30,29 +32,12 @@ export function TeamProvider({ children }: { children: ReactNode }) {
         const sqliteTeam = getTeamLocal();
         if (sqliteTeam) {
           setTeamState(sqliteTeam);
-          setIsLoadingTeam(false);
-          // Sync Firestore if needed
-          try {
-            const docSnap = await getDoc(doc(db, 'teams', sqliteTeam.id));
-            if (docSnap.exists()) {
-              // Firestore has latest version, ensure local is up‑to‑date
-              const remote = docSnap.data() as Team;
-              if (JSON.stringify(remote) !== JSON.stringify(sqliteTeam)) {
-                setTeamState(remote);
-                saveTeamLocal(remote);
-                await AsyncStorage.setItem('team_data', JSON.stringify(remote));
-              }
-            }
-          } catch (e) {
-            console.warn('Failed to fetch team from Firestore:', e);
-          }
           return;
         }
       } catch (error) {
         console.warn('SQLite fetch failed, falling back to AsyncStorage:', error);
       }
 
-      // Fallback to AsyncStorage
       const saved = await AsyncStorage.getItem('team_data');
       if (saved) {
         const parsed = JSON.parse(saved) as Team;
@@ -65,12 +50,16 @@ export function TeamProvider({ children }: { children: ReactNode }) {
       }
     })().finally(() => setIsLoadingTeam(false));
   }, []);
+
   const setTeam = async (newTeam: Team | null) => {
     setTeamState(newTeam);
+
     if (newTeam) {
       try {
         saveTeamLocal(newTeam);
-        await setDoc(doc(db, 'teams', newTeam.id), newTeam);
+        if (auth.currentUser && !auth.currentUser.isAnonymous) {
+          await setDoc(doc(db, 'teams', newTeam.id), newTeam);
+        }
       } catch (e) {
         console.error('Failed to save team to local SQLite database or Firestore:', e);
       }
@@ -80,11 +69,10 @@ export function TeamProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  return (
-    <TeamContext.Provider value={{ team, isLoadingTeam, setTeam }}>
-      {children}
-    </TeamContext.Provider>
-  );
+  return React.createElement(TeamContext.Provider, {
+    value: { team, isLoadingTeam, setTeam },
+    children,
+  });
 }
 
 export function useTeam() {

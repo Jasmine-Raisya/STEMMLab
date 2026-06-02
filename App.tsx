@@ -95,25 +95,19 @@ function AppNavigator() {
   const [currentScreen, setCurrentScreen] = useState<RouteId | null>(null);
   const isDark = useColorScheme() === 'dark';
   const { team, isLoadingTeam } = useTeam();
-  useFirebaseAuth();
+  const { user, loading: isLoadingAuth } = useFirebaseAuth();
+  const isSignedIn = !!user && !user.isAnonymous;
 
   useEffect(() => {
-    if (isLoadingTeam || currentScreen !== null) return;
-    setCurrentScreen(team ? ROUTES.dashboard : ROUTES.splash);
-  }, [currentScreen, isLoadingTeam, team]);
-
-  // Reset to splash on logout (team cleared)
-  useEffect(() => {
-    if (!isLoadingTeam && !team && currentScreen !== null) {
-      setCurrentScreen(ROUTES.splash);
-    }
-  }, [team, isLoadingTeam]);
+    if (isLoadingTeam || isLoadingAuth || currentScreen !== null) return;
+    setCurrentScreen(team && isSignedIn ? ROUTES.dashboard : ROUTES.splash);
+  }, [currentScreen, isLoadingAuth, isLoadingTeam, isSignedIn, team]);
 
   const navigate = (screen: number) => {
     setCurrentScreen(isRouteId(screen) ? screen : ROUTES.dashboard);
   };
 
-  if (isLoadingTeam || currentScreen === null) {
+  if (isLoadingTeam || isLoadingAuth || currentScreen === null) {
     return (
       <SafeAreaView style={styles.safeArea}>
         <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
@@ -124,7 +118,7 @@ function AppNavigator() {
     );
   }
 
-  const activeScreen = !team && protectedRoutes.has(currentScreen) ? ROUTES.register : currentScreen;
+  const activeScreen = (!team || !isSignedIn) && protectedRoutes.has(currentScreen) ? ROUTES.login : currentScreen;
 
   return (
     <SafeAreaView style={styles.safeArea}>

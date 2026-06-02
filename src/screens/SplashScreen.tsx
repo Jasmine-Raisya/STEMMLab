@@ -26,7 +26,7 @@ export function SplashScreen({ onNext, onLogin }: Props) {
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.loginBtn} onPress={onLogin} activeOpacity={0.85}>
-        <Text style={styles.loginBtnText}>Login with Team Code</Text>
+        <Text style={styles.loginBtnText}>Login with Email</Text>
       </TouchableOpacity>
     </View>
   );
