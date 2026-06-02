@@ -1,0 +1,60 @@
+{
+  "expo": {
+    "name": "stemm-lab-mobile",
+    "slug": "stemm-lab-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "updates": {
+      "enabled": false
+    },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "STEMM Lab tags environmental activity readings with location.",
+        "NSMicrophoneUsageDescription": "STEMM Lab uses the microphone to estimate sound levels during experiments.",
+        "UIBackgroundModes": [
+          "fetch"
+        ]
+      }
+    },
+    "android": {
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "RECORD_AUDIO"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-localization",
+      "expo-sqlite",
+      "expo-location",
+      "expo-notifications",
+      "expo-task-manager",
+      "expo-video",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "STEMM Lab uses the microphone to estimate sound levels during experiments."
+        }
+      ],
+      "expo-background-task"
+    ]
+  }
+}
