@@ -14,7 +14,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>('light');
 
   useEffect(() => {
-    AsyncStorage.getItem('theme').then((saved) => {
+    AsyncStorage.getItem('theme').then((saved: string | null) => {
       if (saved === 'dark' || saved === 'light') setTheme(saved);
     });
   }, []);

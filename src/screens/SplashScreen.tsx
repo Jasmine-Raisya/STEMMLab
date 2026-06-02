@@ -2,9 +2,12 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-interface Props { onNext: () => void; }
+interface Props {
+  onNext: () => void;
+  onLogin: () => void;
+}
 
-export function SplashScreen({ onNext }: Props) {
+export function SplashScreen({ onNext, onLogin }: Props) {
   const { t } = useTranslation();
 
   return (
@@ -20,6 +23,10 @@ export function SplashScreen({ onNext }: Props) {
 
       <TouchableOpacity style={styles.btn} onPress={onNext} activeOpacity={0.85}>
         <Text style={styles.btnText}>{t('onboarding.getStarted')}</Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity style={styles.loginBtn} onPress={onLogin} activeOpacity={0.85}>
+        <Text style={styles.loginBtnText}>Login with Team Code</Text>
       </TouchableOpacity>
     </View>
   );
@@ -44,4 +51,6 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: '#2F3E46', textAlign: 'center' },
   btn: { width: '100%', paddingVertical: 16, borderRadius: 14, backgroundColor: '#0074D9', alignItems: 'center' },
   btnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  loginBtn: { width: '100%', paddingVertical: 16, borderRadius: 14, backgroundColor: 'transparent', borderWidth: 2, borderColor: '#0074D9', alignItems: 'center', marginTop: 12 },
+  loginBtnText: { color: '#0074D9', fontSize: 17, fontWeight: '800' },
 });

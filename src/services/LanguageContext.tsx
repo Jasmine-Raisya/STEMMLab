@@ -16,7 +16,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<AppLanguage>(defaultLanguage);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((saved) => {
+    AsyncStorage.getItem(STORAGE_KEY).then((saved: string | null) => {
       if (saved === 'en' || saved === 'id') {
         setLanguageState(saved);
         void i18n.changeLanguage(saved);

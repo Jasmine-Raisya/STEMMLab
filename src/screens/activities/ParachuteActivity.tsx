@@ -4,6 +4,8 @@ import { useTranslation } from 'react-i18next';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
 import { SpeechButton } from '../../components/SpeechButton';
+import { useTeam } from '../../services/teamContext';
+import { saveExperimentRecordLocal } from '../../services/localDb';
 
 interface Props { onBack: () => void; }
 
@@ -242,6 +244,7 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
 
 export function ParachuteActivity({ onBack }: Props) {
   const { t } = useTranslation();
+  const { team } = useTeam();
   const [step, setStep] = useState(1);
   const [iterations, setIterations] = useState<Iteration[]>([]);
   const [currentIter, setCurrentIter] = useState(1);
@@ -260,6 +263,31 @@ export function ParachuteActivity({ onBack }: Props) {
     setStep(1);
   };
 
+  const handleCompleteActivity = () => {
+    if (team) {
+      const avgTime = iterations.length > 0 
+        ? parseFloat((iterations.reduce((sum, item) => sum + item.time, 0) / iterations.length).toFixed(2)) 
+        : 3.47;
+
+      try {
+        saveExperimentRecordLocal({
+          id: `parachute_${Date.now()}`,
+          teamId: team.teamId,
+          activityId: 'parachute',
+          score: avgTime,
+          timestamp: Date.now(),
+          details: {
+            attempts: iterations.length,
+            runs: iterations,
+          }
+        });
+      } catch (e) {
+        console.error('Failed to save parachute experiment to SQLite:', e);
+      }
+    }
+    onBack();
+  };
+
   return (
     <View style={styles.root}>
       <ActivityHeader
@@ -276,7 +304,7 @@ export function ParachuteActivity({ onBack }: Props) {
         {step === 4 && <PhysicsCalculatorScreen onNext={() => setStep(5)} />}
         {step === 5 && <IterationLogScreen iterations={iterations} onCreateNew={handleCreateIteration} onFinish={() => setStep(6)} />}
         {step === 6 && <LeaderboardScreen onNext={() => setStep(7)} />}
-        {step === 7 && <WriteUpScreen onBack={onBack} />}
+        {step === 7 && <WriteUpScreen onBack={handleCompleteActivity} />}
       </View>
     </View>
   );

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
-
 import { LanguageToggle } from '../components/LanguageToggle';
 import { stemmColors } from '../components/ActivityScaffold';
 import { useTheme } from '../ThemeContext';
+import { useFirebaseAuth } from '../services/authService';
+import { useTeam } from '../services/teamContext';
 
 interface Props { onBack: () => void; }
 
@@ -25,6 +26,8 @@ function Toggle({ on, onPress }: { on: boolean; onPress: () => void }) {
 export function SettingsScreen({ onBack }: Props) {
   const { theme, toggleTheme } = useTheme();
   const { t } = useTranslation();
+  const { signOut } = useFirebaseAuth();
+  const { setTeam } = useTeam();
   const isDark = theme === 'dark';
 
   const [gps, setGps] = useState(false);
@@ -49,6 +52,15 @@ export function SettingsScreen({ onBack }: Props) {
     { icon: 'TTS', label: t('common.sound'), sub: t('common.audioFeedback'), on: sound, onPress: () => setSound(!sound) },
     { icon: 'Bell', label: t('common.notifications'), sub: t('common.pushNotifications'), on: notifs, onPress: () => setNotifs(!notifs) },
   ];
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      await setTeam(null);
+    } catch (e) {
+      console.error('Logout error:', e);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: bg }]}>
@@ -82,6 +94,15 @@ export function SettingsScreen({ onBack }: Props) {
             </View>
           </View>
         ))}
+
+        {/* Logout */}
+        <TouchableOpacity
+          onPress={handleLogout}
+          style={[styles.card, styles.logoutBtn, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.rowLabel, { color: '#dc2626', textAlign: 'center', marginBottom: 0 }]}>Logout</Text>
+        </TouchableOpacity>
       </ScrollView>
     </View>
   );
@@ -116,4 +137,5 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 14 },
   toggle: { borderRadius: 14, height: 28, position: 'relative', width: 48 },
   knob: { backgroundColor: '#fff', borderRadius: 12, elevation: 2, height: 24, position: 'absolute', top: 2, width: 24 },
+  logoutBtn: { alignItems: 'center', paddingVertical: 14 },
 });

@@ -188,7 +188,7 @@ function PerformanceSummaryScreen({ onNext }: { onNext: () => void }) {
       <Text style={styles.heading}>{t('humanPerformance.performanceSummary')}</Text>
       <View style={styles.centerStage}>
         <View style={styles.scoreWrap}>
-          <Svg width={220} height={220} viewBox="0 0 200 200" style={{ transform: [{ rotate: '-90deg' }] }}>
+          <Svg width={220} height={220} viewBox="0 0 200 200" style={{ transform: [{ rotate: '-90deg' }] } as any}>
             <Circle cx="100" cy="100" r="85" fill="none" stroke="#DDE8EE" strokeWidth="18" />
             <Circle cx="100" cy="100" r="85" fill="none" stroke={stemmColors.green} strokeWidth="18" strokeLinecap="round" strokeDasharray={dashArray} />
           </Svg>

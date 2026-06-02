@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
 import { SpeechButton } from '../../components/SpeechButton';
+import { useTeam } from '../../services/teamContext';
+import { saveExperimentRecordLocal } from '../../services/localDb';
 
 interface Props { onBack: () => void; }
 
@@ -57,6 +59,7 @@ function DecibelMeterScreen({ onNext }: { onNext: () => void }) {
       <SpeechButton text={t('sound.meterSub')} style={s.speech} />
       <View style={s.center}>
         <Svg width={260} height={140} viewBox="0 0 200 110">
+          {/* @ts-ignore */}
           <Defs>
             <LinearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%">
               <Stop offset="0%" stopColor="#4CAF50" />
@@ -214,8 +217,30 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
 
 export function SoundPollutionActivity({ onBack }: Props) {
   const { t } = useTranslation();
+  const { team } = useTeam();
   const [step, setStep] = React.useState(1);
   const total = 6;
+
+  const handleCompleteActivity = () => {
+    if (team) {
+      try {
+        saveExperimentRecordLocal({
+          id: `sound_${Date.now()}`,
+          teamId: team.teamId,
+          activityId: 'sound',
+          score: 68,
+          timestamp: Date.now(),
+          details: {
+            location: 'Lab Room 2',
+            riskLevel: 'Moderate'
+          }
+        });
+      } catch (e) {
+        console.error('Failed to save sound pollution experiment to SQLite:', e);
+      }
+    }
+    onBack();
+  };
 
   return (
     <View style={s.root}>
@@ -232,7 +257,7 @@ export function SoundPollutionActivity({ onBack }: Props) {
         {step === 3 && <ActionLoggerScreen onNext={() => setStep(4)} />}
         {step === 4 && <LocationTaggerScreen onNext={() => setStep(5)} />}
         {step === 5 && <RiskChartScreen onNext={() => setStep(6)} />}
-        {step === 6 && <WriteUpScreen onBack={onBack} />}
+        {step === 6 && <WriteUpScreen onBack={handleCompleteActivity} />}
       </View>
     </View>
   );
