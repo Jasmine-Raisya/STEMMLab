@@ -8,7 +8,10 @@
     "start:tunnel": "expo start --tunnel --clear",
     "android": "expo start --android",
     "ios": "expo start --ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "typecheck": "tsc --noEmit",
+    "test": "jest --passWithNoTests",
+    "ci": "npm run typecheck && npm test -- --runInBand"
   },
   "dependencies": {
     "@expo/cli": "^55.0.27",
