@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
 
 # dependencies
@@ -43,3 +44,106 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+=======
+# Built application files
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Java class files
+*.class
+
+# Generated files
+bin/
+gen/
+out/
+build/
+.release/
+
+# Gradle files
+.gradle/
+gradle-app.setting
+!gradle-wrapper.jar
+.gradletasknamecache
+
+# Local configuration file (sdk path, etc)
+local.properties
+
+# Log files
+*.log
+
+# Android Studio Navigation editor temp files
+.navigation/
+
+# Android Studio captures folder
+captures/
+
+# IntelliJ IDEA files
+*.iml
+.idea/
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/gradle.xml
+.idea/assetWizardSettings.xml
+.idea/dictionaries
+.idea/libraries
+.idea/caches
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/codeStyles/
+.idea/runConfigurations/
+
+# Keystore files (critical for security)
+*.jks
+*.keystore
+*.b64
+keystore.b64
+service-account-key.json
+google-services.json
+keystore/
+
+# Firebase configuration (can be public but better to exclude)
+# google-services.json - add to .gitignore and provide template
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Test coverage reports
+*.ec
+coverage/
+jacoco/
+testResults/
+
+# Crashlytics
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
+
+# Version control
+*.orig
+*.rej
+
+# Mac files
+*.DS_Store
+.AppleDouble
+.LSOverride
+
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# Environment files
+.env
+.env.local
+.env.production
+.env.development
+
+# Secrets and keys
+secrets.properties
+keys.properties
+signing.properties
+>>>>>>> a72ad56c75d4ac3036b36c31606ea7f4f369728d
