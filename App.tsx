@@ -126,21 +126,11 @@ function AppNavigator() {
 
         {activeScreen === ROUTES.splash && <SplashScreen onNext={() => navigate(ROUTES.register)} onLogin={() => navigate(ROUTES.login)} />}
         {activeScreen === ROUTES.login && <TeamLoginScreen onBack={() => navigate(ROUTES.splash)} onSuccess={() => navigate(ROUTES.dashboard)} />}
-        {activeScreen === ROUTES.register && <TeamSetupScreen onNext={() => navigate(ROUTES.teamCode)} />}
+        {activeScreen === ROUTES.register && <TeamSetupScreen onRegistered={() => navigate(ROUTES.teamCode)} onSignedIn={() => navigate(ROUTES.dashboard)} />}
         {activeScreen === ROUTES.teamCode && <DiscriminatorRevealScreen teamData={{ teamId: team?.teamId ?? '' }} onNext={() => navigate(ROUTES.dashboard)} />}
         {activeScreen === ROUTES.dashboard && <MainDashboardScreen onNavigate={navigate} />}
-        {activeScreen === ROUTES.teamProfile && (
-          <TeamProfileScreen
-            teamData={{
-              teamName: team?.teamName ?? 'Phoenix Innovators',
-              members: team?.members ?? ['Alex Chen', 'Jordan Smith', 'Taylor Brooks', 'Sam Rivera'],
-              yearLevel: team?.yearLevel ?? '7',
-              teamId: team?.teamId ?? 'Phoenix Innovators #7843',
-            }}
-            onBack={() => navigate(ROUTES.dashboard)}
-          />
-        )}
-        {activeScreen === ROUTES.settings && <SettingsScreen onBack={() => navigate(ROUTES.dashboard)} />}
+        {activeScreen === ROUTES.teamProfile && <TeamProfileScreen onBack={() => navigate(ROUTES.dashboard)} />}
+        {activeScreen === ROUTES.settings && <SettingsScreen onBack={() => navigate(ROUTES.dashboard)} onLoggedOut={() => navigate(ROUTES.splash)} />}
         {activeScreen === ROUTES.engineering && <EngineeringMenuScreen onBack={() => navigate(ROUTES.dashboard)} onSelectActivity={navigate} />}
         {activeScreen === ROUTES.parachute && <ParachuteActivity onBack={() => navigate(ROUTES.engineering)} />}
         {activeScreen === ROUTES.sound && <SoundPollutionActivity onBack={() => navigate(ROUTES.engineering)} />}

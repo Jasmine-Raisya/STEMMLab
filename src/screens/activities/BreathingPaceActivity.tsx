@@ -1,10 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Svg, { Line, Polyline } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
 import { SpeechButton } from '../../components/SpeechButton';
+import { BatteryWarning } from '../../components/BatteryWarning';
+import { SensorLineChart } from '../../components/SensorLineChart';
+import { useAccelerometerStream } from '../../hooks/useAccelerometerStream';
+import { ReflectionForm } from '../../components/ReflectionForm';
+import { useTeam } from '../../services/teamContext';
 
 interface Props { onBack: () => void; }
 
@@ -36,13 +40,15 @@ function PlacementGuideScreen({ onNext }: { onNext: () => void }) {
   );
 }
 
-function RestingPulseScreen({ onNext }: { onNext: () => void }) {
+function RestingPulseScreen({ onNext }: { onNext: (breaths: number) => void }) {
   const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState(60);
   const [running, setRunning] = useState(false);
   const [breathCount, setBreathCount] = useState(0);
   const pulse = useRef(new Animated.Value(1)).current;
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastBreathRef = useRef(0);
+  const stream = useAccelerometerStream({ activityId: 'breathing', metric: 'resting-chest-motion', active: running, threshold: 2 });
 
   useEffect(() => {
     Animated.loop(
@@ -57,7 +63,6 @@ function RestingPulseScreen({ onNext }: { onNext: () => void }) {
     if (running && timeLeft > 0) {
       timerRef.current = setInterval(() => {
         setTimeLeft((time) => time - 1);
-        if (Math.random() > 0.7) setBreathCount((count) => count + 1);
       }, 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -67,6 +72,16 @@ function RestingPulseScreen({ onNext }: { onNext: () => void }) {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [running, timeLeft]);
+
+  useEffect(() => {
+    if (!running || stream.samples.length === 0) return;
+    const latest = stream.samples[stream.samples.length - 1];
+    const now = Date.now();
+    if (latest.value > 1.05 && now - lastBreathRef.current > 2500) {
+      lastBreathRef.current = now;
+      setBreathCount((count) => count + 1);
+    }
+  }, [running, stream.samples]);
 
   return (
     <View style={[s.pad, s.flex]}>
@@ -83,29 +98,32 @@ function RestingPulseScreen({ onNext }: { onNext: () => void }) {
           <Text style={s.cardTitle}>{t('breathing.breathsDetected')}</Text>
           <Text style={s.score}>{breathCount}</Text>
         </View>
+        <BatteryWarning />
+        <SensorLineChart samples={stream.samples} label={t('data.restingState')} color={stemmColors.blue} />
         <TouchableOpacity style={[s.btn, { backgroundColor: running ? '#C53A2C' : stemmColors.green }]} onPress={() => setRunning(!running)}>
           <Text style={s.btnText}>{running ? t('breathing.stopMeasurement') : t('breathing.startMeasurement')}</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={s.outlineBtn} onPress={onNext}>
+      <TouchableOpacity style={s.outlineBtn} onPress={() => onNext(breathCount)}>
         <Text style={s.outlineBtnText}>{t('breathing.nextExercise')}</Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-function ExerciseTimerScreen({ onNext }: { onNext: () => void }) {
+function ExerciseTimerScreen({ onNext }: { onNext: (jumps: number) => void }) {
   const { t } = useTranslation();
   const [timeLeft, setTimeLeft] = useState(30);
   const [active, setActive] = useState(false);
   const [jumpCount, setJumpCount] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastJumpRef = useRef(0);
+  const stream = useAccelerometerStream({ activityId: 'breathing', metric: 'exercise-motion', active, threshold: 4 });
 
   useEffect(() => {
     if (active && timeLeft > 0) {
       timerRef.current = setInterval(() => {
         setTimeLeft((time) => time - 1);
-        if (Math.random() > 0.6) setJumpCount((count) => count + 1);
       }, 1000);
     } else if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -115,6 +133,16 @@ function ExerciseTimerScreen({ onNext }: { onNext: () => void }) {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [active, timeLeft]);
+
+  useEffect(() => {
+    if (!active || stream.samples.length === 0) return;
+    const latest = stream.samples[stream.samples.length - 1];
+    const now = Date.now();
+    if (latest.value > 1.8 && now - lastJumpRef.current > 650) {
+      lastJumpRef.current = now;
+      setJumpCount((count) => count + 1);
+    }
+  }, [active, stream.samples]);
 
   return (
     <View style={[s.pad, s.flex, { backgroundColor: '#FFF8E1' }]}>
@@ -127,11 +155,13 @@ function ExerciseTimerScreen({ onNext }: { onNext: () => void }) {
           <Text style={s.cardTitle}>{t('breathing.starJumps')}</Text>
           <Text style={[s.score, { color: stemmColors.orange }]}>{jumpCount}</Text>
         </View>
+        <BatteryWarning />
+        <SensorLineChart samples={stream.samples} label={t('data.postExercise')} color={stemmColors.orange} />
         <TouchableOpacity style={[s.btn, { backgroundColor: active ? '#C53A2C' : stemmColors.orange }]} onPress={() => setActive(!active)}>
           <Text style={s.btnText}>{active ? t('breathing.stopExercise') : t('breathing.startJumping')}</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={s.btn} onPress={onNext}>
+      <TouchableOpacity style={s.btn} onPress={() => onNext(jumpCount)}>
         <Text style={s.btnText}>{t('breathing.compareResults')}</Text>
       </TouchableOpacity>
     </View>
@@ -140,29 +170,14 @@ function ExerciseTimerScreen({ onNext }: { onNext: () => void }) {
 
 function ComparativeWaveformsScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
-  const restData = Array.from({ length: 60 }, (_, i) => Math.sin(i * 0.3) * 20 + 50);
-  const exerciseData = Array.from({ length: 60 }, (_, i) => Math.sin(i * 0.5) * 35 + 70);
-  const toPoints = (data: number[]) => data.map((y, i) => `${(i / 60) * 300},${80 - y}`).join(' ');
+  const stream = useAccelerometerStream({ activityId: 'breathing', metric: 'chest-motion', active: true, threshold: 3 });
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('breathing.waveforms')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('breathing.waveformsSub')}</Text>
-      {[
-        { label: t('data.restingState'), bpm: '12 BPM', points: toPoints(restData), stroke: '#2196F3' },
-        { label: t('data.postExercise'), bpm: '28 BPM', points: toPoints(exerciseData), stroke: stemmColors.orange },
-      ].map((wave) => (
-        <View key={wave.label} style={s.waveCard}>
-          <View style={s.rowBetween}>
-            <Text style={s.cardTitle}>{wave.label}</Text>
-            <Text style={[s.cardTitle, { color: wave.stroke }]}>{wave.bpm}</Text>
-          </View>
-          <Svg width="100%" height={80} viewBox="0 0 300 80">
-            <Line x1="0" y1="40" x2="300" y2="40" stroke="#e0e0e0" strokeWidth="1" />
-            <Polyline points={wave.points} fill="none" stroke={wave.stroke} strokeWidth="2" />
-          </Svg>
-        </View>
-      ))}
+      <BatteryWarning />
+      <SensorLineChart samples={stream.samples} label={t('data.postExercise')} color={stemmColors.orange} />
       <TouchableOpacity style={s.btn} onPress={onNext}>
         <Text style={s.btnText}>{t('common.leaderboard')}</Text>
       </TouchableOpacity>
@@ -170,9 +185,13 @@ function ComparativeWaveformsScreen({ onNext }: { onNext: () => void }) {
   );
 }
 
-function LeaderboardScreen({ onNext }: { onNext: () => void }) {
+function LeaderboardScreen({ restingBreaths, exerciseJumps, onNext }: { restingBreaths: number; exerciseJumps: number; onNext: () => void }) {
   const { t } = useTranslation();
-  const fields = [`${t('data.breathsPerMinuteResting')}: 12`, `${t('data.breathsPerMinutePostExercise')}: 28`, `${t('data.recoveryTime')}: 2:15`];
+  const fields = [
+    `${t('data.breathsPerMinuteResting')}: ${restingBreaths}`,
+    `${t('breathing.starJumps')}: ${exerciseJumps}`,
+    `${t('data.breathsPerMinutePostExercise')}: ${exerciseJumps > 0 ? t('common.recording') : '-'}`,
+  ];
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
@@ -187,6 +206,7 @@ function LeaderboardScreen({ onNext }: { onNext: () => void }) {
 
 function MedicalReflectionScreen({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
+  const { team } = useTeam();
   const fields = translatedArray(t('breathing.writeUpFields', { returnObjects: true }));
 
   return (
@@ -194,15 +214,7 @@ function MedicalReflectionScreen({ onBack }: { onBack: () => void }) {
       <Text style={s.heading}>{t('breathing.medicalReflection')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('breathing.medicalSub')}</Text>
       <SpeechButton text={fields} style={s.speech} />
-      {fields.map((field) => (
-        <View key={field} style={s.inputGroup}>
-          <Text style={s.label}>{field}</Text>
-          <TextInput style={s.textarea} multiline editable={false} textAlignVertical="top" />
-        </View>
-      ))}
-      <TouchableOpacity style={s.btn} onPress={onBack}>
-        <Text style={s.btnText}>{t('common.completeActivity')}</Text>
-      </TouchableOpacity>
+      <ReflectionForm activityId="breathing" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
     </ScrollView>
   );
 }
@@ -210,6 +222,8 @@ function MedicalReflectionScreen({ onBack }: { onBack: () => void }) {
 export function BreathingPaceActivity({ onBack }: Props) {
   const { t } = useTranslation();
   const [step, setStep] = useState(1);
+  const [restingBreaths, setRestingBreaths] = useState(0);
+  const [exerciseJumps, setExerciseJumps] = useState(0);
   const total = 6;
 
   return (
@@ -217,10 +231,10 @@ export function BreathingPaceActivity({ onBack }: Props) {
       <ActivityHeader title={t('breathing.title')} step={step} total={total} color={stemmColors.orange} onBack={step === 1 ? onBack : () => setStep(step - 1)} />
       <View style={s.flex}>
         {step === 1 && <PlacementGuideScreen onNext={() => setStep(2)} />}
-        {step === 2 && <RestingPulseScreen onNext={() => setStep(3)} />}
-        {step === 3 && <ExerciseTimerScreen onNext={() => setStep(4)} />}
+        {step === 2 && <RestingPulseScreen onNext={(breaths) => { setRestingBreaths(breaths); setStep(3); }} />}
+        {step === 3 && <ExerciseTimerScreen onNext={(jumps) => { setExerciseJumps(jumps); setStep(4); }} />}
         {step === 4 && <ComparativeWaveformsScreen onNext={() => setStep(5)} />}
-        {step === 5 && <LeaderboardScreen onNext={() => setStep(6)} />}
+        {step === 5 && <LeaderboardScreen restingBreaths={restingBreaths} exerciseJumps={exerciseJumps} onNext={() => setStep(6)} />}
         {step === 6 && <MedicalReflectionScreen onBack={onBack} />}
       </View>
     </View>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { AdMobBanner } from '../components/AdMobBanner';
 
 interface Props { onNavigate: (screen: number) => void; }
 
@@ -48,6 +49,7 @@ export function MainDashboardScreen({ onNavigate }: Props) {
           <Text style={styles.tileTitle}>{t('common.health')}</Text>
           <Text style={styles.tileSubtitle}>{t('common.wellnessCare')}</Text>
         </TouchableOpacity>
+        <AdMobBanner />
       </View>
     </View>
   );

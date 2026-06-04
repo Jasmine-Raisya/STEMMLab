@@ -1,5 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 import { Platform } from 'react-native';
+import { ActivityLog, ActivityReflection, SensorSample, TeamProfile } from '../types/models';
 
 // NOTE: For simplicity we keep SQLite sync APIs (openDatabaseSync, execSync, …).
 // On native devices this works fine, but it blocks the JS thread.
@@ -67,6 +68,45 @@ export async function initializeDatabase(): Promise<void> {
       collectionName TEXT NOT NULL,
       payload TEXT NOT NULL,
       timestamp INTEGER NOT NULL
+    );
+  `);
+
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS sensor_samples (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      value REAL NOT NULL,
+      x REAL,
+      y REAL,
+      z REAL,
+      latitude REAL,
+      longitude REAL,
+      timestamp INTEGER NOT NULL,
+      synced INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS activity_reflections (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      rating INTEGER NOT NULL,
+      answers_json TEXT NOT NULL,
+      timestamp INTEGER NOT NULL,
+      synced INTEGER NOT NULL DEFAULT 0
+    );
+  `);
+
+  db.execSync(`
+    CREATE TABLE IF NOT EXISTS activity_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      activity_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      timestamp INTEGER NOT NULL,
+      synced INTEGER NOT NULL DEFAULT 0
     );
   `);
 
@@ -138,4 +178,130 @@ export function getPendingSyncsLocal(): any[] {
 export function dequeueSyncLocal(id: string): void {
   const db = getDb();
   db.runSync('DELETE FROM sync_queue WHERE id = ?', [id]);
+}
+
+export async function saveTeamProfile(profile: TeamProfile): Promise<void> {
+  saveTeamLocal({
+    id: profile.id,
+    teamId: profile.authUid ?? profile.id,
+    teamName: profile.teamName,
+    members: profile.members,
+    yearLevel: profile.gradeLevel,
+  });
+}
+
+export async function getTeamProfile(id: string): Promise<TeamProfile | null> {
+  const localTeam = getTeamLocal();
+  if (!localTeam || localTeam.id !== id) return null;
+  return {
+    id: localTeam.id,
+    authUid: localTeam.ownerUid,
+    representativeEmail: localTeam.representativeEmail ?? localTeam.ownerEmail ?? '',
+    teamName: localTeam.teamName,
+    members: localTeam.members,
+    gradeLevel: localTeam.gradeLevel ?? localTeam.yearLevel,
+    createdAt: localTeam.createdAt ?? Date.now(),
+  };
+}
+
+export async function insertSensorSample(sample: SensorSample): Promise<void> {
+  const db = getDb();
+  db.runSync(
+    `INSERT INTO sensor_samples (activity_id, metric, value, x, y, z, latitude, longitude, timestamp, synced)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      sample.activityId,
+      sample.metric,
+      sample.value,
+      sample.x ?? null,
+      sample.y ?? null,
+      sample.z ?? null,
+      sample.latitude ?? null,
+      sample.longitude ?? null,
+      sample.timestamp,
+      sample.synced ? 1 : 0,
+    ],
+  );
+}
+
+function mapSensorRow(row: any): SensorSample {
+  return {
+    id: row.id,
+    activityId: row.activity_id,
+    metric: row.metric,
+    value: row.value,
+    x: row.x,
+    y: row.y,
+    z: row.z,
+    latitude: row.latitude,
+    longitude: row.longitude,
+    timestamp: row.timestamp,
+    synced: row.synced === 1,
+  };
+}
+
+export async function getUnsyncedSensorSamples(limit = 200): Promise<SensorSample[]> {
+  const db = getDb();
+  const rows = db.getAllSync('SELECT * FROM sensor_samples WHERE synced = 0 ORDER BY timestamp ASC LIMIT ?', [limit]);
+  return rows.map(mapSensorRow);
+}
+
+export async function getRecentSensorSamples(activityId: string, limit = 100): Promise<SensorSample[]> {
+  const db = getDb();
+  const rows = db.getAllSync('SELECT * FROM sensor_samples WHERE activity_id = ? ORDER BY timestamp DESC LIMIT ?', [activityId, limit]);
+  return rows.map(mapSensorRow);
+}
+
+export async function markSensorSamplesSynced(ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = getDb();
+  ids.forEach((id) => db.runSync('UPDATE sensor_samples SET synced = 1 WHERE id = ?', [id]));
+}
+
+export async function insertActivityReflection(reflection: ActivityReflection): Promise<void> {
+  const db = getDb();
+  db.runSync(
+    `INSERT INTO activity_reflections (activity_id, team_id, rating, answers_json, timestamp, synced)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [
+      reflection.activityId,
+      reflection.teamId,
+      reflection.rating,
+      JSON.stringify(reflection.answers),
+      reflection.timestamp,
+      reflection.synced ? 1 : 0,
+    ],
+  );
+}
+
+export async function insertActivityLog(log: ActivityLog): Promise<void> {
+  const db = getDb();
+  db.runSync(
+    `INSERT INTO activity_logs (activity_id, team_id, payload_json, timestamp, synced)
+     VALUES (?, ?, ?, ?, ?)`,
+    [log.activityId, log.teamId, JSON.stringify(log.payload), log.timestamp, log.synced ? 1 : 0],
+  );
+}
+
+export async function getUnsyncedActivityLogs(limit = 100): Promise<Array<{
+  id: number;
+  activity_id: string;
+  team_id: string;
+  payload_json: string;
+  timestamp: number;
+}>> {
+  const db = getDb();
+  return db.getAllSync('SELECT * FROM activity_logs WHERE synced = 0 ORDER BY timestamp ASC LIMIT ?', [limit]) as Array<{
+    id: number;
+    activity_id: string;
+    team_id: string;
+    payload_json: string;
+    timestamp: number;
+  }>;
+}
+
+export async function markActivityLogsSynced(ids: number[]): Promise<void> {
+  if (ids.length === 0) return;
+  const db = getDb();
+  ids.forEach((id) => db.runSync('UPDATE activity_logs SET synced = 1 WHERE id = ?', [id]));
 }

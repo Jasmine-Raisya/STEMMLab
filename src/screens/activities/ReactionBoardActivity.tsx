@@ -5,6 +5,8 @@ import { useTranslation } from 'react-i18next';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
 import { SpeechButton } from '../../components/SpeechButton';
+import { ReflectionForm } from '../../components/ReflectionForm';
+import { useTeam } from '../../services/teamContext';
 
 interface Props { onBack: () => void; }
 
@@ -30,7 +32,7 @@ function PhaseSelectionScreen({ onNext }: { onNext: () => void }) {
         <TouchableOpacity key={phase} style={s.phaseCard} activeOpacity={0.8}>
           <View style={s.phaseIcon}><Text style={s.phaseIndex}>{index + 1}</Text></View>
           <Text style={[s.cardTitle, s.flex]}>{phase}</Text>
-          <Text style={s.muted}>{index === 0 ? '285ms' : index === 1 ? '420ms' : '3.2s'}</Text>
+          <Text style={s.muted}>{t('common.ready')}</Text>
         </TouchableOpacity>
       ))}
       <TouchableOpacity style={s.btn} onPress={onNext}>
@@ -40,15 +42,19 @@ function PhaseSelectionScreen({ onNext }: { onNext: () => void }) {
   );
 }
 
-function TheBoardScreen({ onNext }: { onNext: () => void }) {
+function TheBoardScreen({ onNext, onResult }: { onNext: () => void; onResult: (timeMs: number) => void }) {
   const { t } = useTranslation();
   const [state, setState] = useState<'waiting' | 'ready' | 'pressed'>('waiting');
   const [reactionTime, setReactionTime] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const readyAtRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (state === 'waiting') {
-      timerRef.current = setTimeout(() => setState('ready'), Math.random() * 2000 + 1000);
+      timerRef.current = setTimeout(() => {
+        readyAtRef.current = Date.now();
+        setState('ready');
+      }, Math.random() * 2000 + 1000);
     }
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
@@ -57,12 +63,14 @@ function TheBoardScreen({ onNext }: { onNext: () => void }) {
 
   const handlePress = () => {
     if (state === 'ready') {
-      const nextTime = Math.floor(Math.random() * 100 + 200);
+      const nextTime = readyAtRef.current ? Date.now() - readyAtRef.current : 0;
       setReactionTime(nextTime);
+      onResult(nextTime);
       setState('pressed');
       setTimeout(() => {
         setState('waiting');
         setReactionTime(null);
+        readyAtRef.current = null;
       }, 1500);
     }
   };
@@ -115,14 +123,23 @@ function TracingPathScreen({ onNext }: { onNext: () => void }) {
   );
 }
 
-function HandStatsScreen({ onNext }: { onNext: () => void }) {
+function HandStatsScreen({ reactionTimes, onNext }: { reactionTimes: number[]; onNext: () => void }) {
   const { t } = useTranslation();
+  const best = reactionTimes.length ? Math.min(...reactionTimes) : null;
+  const average = reactionTimes.length
+    ? Math.round(reactionTimes.reduce((sum, time) => sum + time, 0) / reactionTimes.length)
+    : null;
+  const rows = [
+    `${t('data.tapTest')}: ${best ? `${best}ms` : '-'}`,
+    `${t('data.average')}: ${average ? `${average}ms` : '-'}`,
+    `${t('data.attempts')}: ${reactionTimes.length}`,
+  ];
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('reaction.handStats')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('reaction.handStatsSub')}</Text>
-      {[`${t('data.tapTest')}: 245ms / 287ms`, `${t('data.handSwap')}: 398ms / 445ms`, `${t('data.tracingAccuracy')}: 82% / 74%`].map((row) => (
+      {rows.map((row) => (
         <View key={row} style={s.card}><Text style={s.cardTitle}>{row}</Text></View>
       ))}
       <TouchableOpacity style={s.btn} onPress={onNext}>
@@ -132,20 +149,23 @@ function HandStatsScreen({ onNext }: { onNext: () => void }) {
   );
 }
 
-function GlobalRankScreen({ onNext }: { onNext: () => void }) {
+function GlobalRankScreen({ bestTime, onNext }: { bestTime: number | null; onNext: () => void }) {
   const { t } = useTranslation();
+  const { team } = useTeam();
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('reaction.globalRank')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('reaction.globalRankSub')}</Text>
-      {['Year 7', 'Year 9', 'Year 8', 'Year 6'].map((grade, index) => (
-        <View key={grade} style={s.lbRow}>
-          <Text style={s.rank}>{index + 1}</Text>
-          <Text style={[s.cardTitle, s.flex]}>{grade}</Text>
-          <Text style={s.score}>{245 + index * 12}ms</Text>
+      {team && bestTime ? (
+        <View style={s.lbRow}>
+          <Text style={s.rank}>1</Text>
+          <Text style={[s.cardTitle, s.flex]}>{team.teamName}</Text>
+          <Text style={s.score}>{bestTime}ms</Text>
         </View>
-      ))}
+      ) : (
+        <View style={s.card}><Text style={s.cardTitle}>{t('parachute.noIterations')}</Text></View>
+      )}
       <TouchableOpacity style={s.btn} onPress={onNext}>
         <Text style={s.btnText}>{t('common.writeUp')}</Text>
       </TouchableOpacity>
@@ -155,6 +175,7 @@ function GlobalRankScreen({ onNext }: { onNext: () => void }) {
 
 function WriteUpScreen({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
+  const { team } = useTeam();
   const fields = translatedArray(t('reaction.writeUpFields', { returnObjects: true }));
 
   return (
@@ -162,15 +183,7 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
       <Text style={s.heading}>{t('common.writeUp')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('reaction.writeSub')}</Text>
       <SpeechButton text={fields} style={s.speech} />
-      {fields.map((field) => (
-        <View key={field} style={s.inputGroup}>
-          <Text style={s.label}>{field}</Text>
-          <TextInput style={s.textarea} multiline editable={false} textAlignVertical="top" />
-        </View>
-      ))}
-      <TouchableOpacity style={s.btn} onPress={onBack}>
-        <Text style={s.btnText}>{t('common.completeActivity')}</Text>
-      </TouchableOpacity>
+      <ReflectionForm activityId="reaction" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
     </ScrollView>
   );
 }
@@ -178,17 +191,19 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
 export function ReactionBoardActivity({ onBack }: Props) {
   const { t } = useTranslation();
   const [step, setStep] = useState(1);
+  const [reactionTimes, setReactionTimes] = useState<number[]>([]);
   const total = 6;
+  const bestTime = reactionTimes.length ? Math.min(...reactionTimes) : null;
 
   return (
     <View style={[s.root, step === 3 && { backgroundColor: stemmColors.blue }]}>
       <ActivityHeader title={t('reaction.title')} step={step} total={total} color="#9C27B0" onBack={step === 1 ? onBack : () => setStep(step - 1)} />
       <View style={s.flex}>
         {step === 1 && <PhaseSelectionScreen onNext={() => setStep(2)} />}
-        {step === 2 && <TheBoardScreen onNext={() => setStep(3)} />}
+        {step === 2 && <TheBoardScreen onResult={(timeMs) => setReactionTimes((previous) => [...previous.slice(-9), timeMs])} onNext={() => setStep(3)} />}
         {step === 3 && <TracingPathScreen onNext={() => setStep(4)} />}
-        {step === 4 && <HandStatsScreen onNext={() => setStep(5)} />}
-        {step === 5 && <GlobalRankScreen onNext={() => setStep(6)} />}
+        {step === 4 && <HandStatsScreen reactionTimes={reactionTimes} onNext={() => setStep(5)} />}
+        {step === 5 && <GlobalRankScreen bestTime={bestTime} onNext={() => setStep(6)} />}
         {step === 6 && <WriteUpScreen onBack={onBack} />}
       </View>
     </View>

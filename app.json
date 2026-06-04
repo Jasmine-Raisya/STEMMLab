@@ -46,8 +46,9 @@
       "expo-notifications",
       "expo-background-fetch",
       "expo-task-manager",
+      "expo-video",
       [
-        "expo-av",
+        "expo-audio",
         {
           "microphonePermission": "STEMM Lab uses the microphone to estimate sound levels during experiments."
         }

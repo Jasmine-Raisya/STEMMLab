@@ -1,10 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Svg, { Circle, Line, Polyline } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
 import { SpeechButton } from '../../components/SpeechButton';
+import { SensorLineChart } from '../../components/SensorLineChart';
+import { BatteryWarning } from '../../components/BatteryWarning';
+import { useGyroscopeStream } from '../../hooks/useGyroscopeStream';
+import { ReflectionForm } from '../../components/ReflectionForm';
+import { useTeam } from '../../services/teamContext';
 
 interface Props { onBack: () => void; }
 
@@ -79,22 +84,17 @@ function SmoothnessTrackerScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
   const [smoothness, setSmoothness] = useState(0);
   const [tracking, setTracking] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const movement = t('humanPerformance.movements.slowReach.name');
+  const stream = useGyroscopeStream('humanPerformance', tracking);
 
   useEffect(() => {
-    if (tracking) {
-      timerRef.current = setInterval(() => {
-        setSmoothness((previous) => Math.min(previous + Math.random() * 10, 85));
-      }, 100);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
+    if (!tracking || stream.samples.length === 0) {
+      if (!tracking) setSmoothness(0);
+      return;
     }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [tracking]);
+    const latest = stream.samples.at(-1)?.value ?? 0;
+    setSmoothness(Math.max(0, Math.min(100, 100 - latest * 30)));
+  }, [stream.samples, tracking]);
 
   const color = smoothness < 40 ? '#C53A2C' : smoothness < 70 ? stemmColors.orange : stemmColors.green;
   const status = smoothness < 40 ? t('humanPerformance.jerky') : smoothness < 70 ? t('humanPerformance.moderate') : t('humanPerformance.smooth');
@@ -126,36 +126,15 @@ function SmoothnessTrackerScreen({ onNext }: { onNext: () => void }) {
 
 function LiveSensorFeedScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
-  const [amplitude, setAmplitude] = useState<number[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    timerRef.current = setInterval(() => {
-      setAmplitude((previous) => {
-        const value = Math.sin(Date.now() / 200) * 30 + 50 + Math.random() * 10;
-        return [...previous.slice(-80), value];
-      });
-    }, 50);
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
-
-  const points = amplitude.map((y, index) => `${(index / 80) * 300},${160 - y}`).join(' ');
+  const stream = useGyroscopeStream('humanPerformance', true);
 
   return (
     <View style={[styles.pad, styles.flex]}>
       <Text style={styles.heading}>{t('humanPerformance.sensorFeed')}</Text>
       <Text style={[styles.body, { marginBottom: 16 }]}>{t('humanPerformance.sensorInstruction')}</Text>
       <SpeechButton text={t('humanPerformance.sensorInstruction')} style={styles.speech} />
-      <View style={styles.chartPanel}>
-        <Text style={styles.chartLabel}>{t('data.amplitude')} (mm)</Text>
-        <Svg width="100%" height={150} viewBox="0 0 300 160">
-          <Line x1="0" y1="80" x2="300" y2="80" stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
-          {amplitude.length > 1 && <Polyline points={points} fill="none" stroke="#6EE7B7" strokeWidth="3" />}
-        </Svg>
-      </View>
+      <BatteryWarning />
+      <SensorLineChart samples={stream.samples} label={t('data.amplitude')} color="#6EE7B7" />
       <View style={styles.section}>
         <View style={styles.rowBetween}>
           <Text style={styles.cardTitle}>{t('humanPerformance.movementQuality')}</Text>
@@ -188,7 +167,7 @@ function PerformanceSummaryScreen({ onNext }: { onNext: () => void }) {
       <Text style={styles.heading}>{t('humanPerformance.performanceSummary')}</Text>
       <View style={styles.centerStage}>
         <View style={styles.scoreWrap}>
-          <Svg width={220} height={220} viewBox="0 0 200 200" style={{ transform: [{ rotate: '-90deg' }] } as any}>
+          <Svg width={220} height={220} viewBox="0 0 200 200" style={styles.scoreSvg as never}>
             <Circle cx="100" cy="100" r="85" fill="none" stroke="#DDE8EE" strokeWidth="18" />
             <Circle cx="100" cy="100" r="85" fill="none" stroke={stemmColors.green} strokeWidth="18" strokeLinecap="round" strokeDasharray={dashArray} />
           </Svg>
@@ -213,15 +192,14 @@ function PerformanceSummaryScreen({ onNext }: { onNext: () => void }) {
 
 function TeamComparisonScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
-  const members = [
-    { name: 'Alex Chen', score: 87 },
-    { name: 'Jordan Smith', score: 79 },
-  ];
+  const { team } = useTeam();
+  const members = (team?.members ?? []).map((name, index) => ({ name, score: 80 - index * 3 }));
 
   return (
     <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
       <Text style={styles.heading}>{t('humanPerformance.teamComparison')}</Text>
       <Text style={[styles.body, { marginBottom: 16 }]}>{t('humanPerformance.sideBySide')}</Text>
+      {members.length === 0 && <Text style={styles.body}>Register team members to compare results.</Text>}
       <View style={styles.barChart}>
         {members.map((member) => (
           <View key={member.name} style={styles.chartColumn}>
@@ -255,12 +233,14 @@ function TeamComparisonScreen({ onNext }: { onNext: () => void }) {
 
 function LeaderboardScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
-  const data = ['Alex Chen', 'Jordan Smith', 'Emily Johnson', 'Chris Lee', 'Sarah Kim'];
+  const { team } = useTeam();
+  const data = team?.members ?? [];
 
   return (
     <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
       <Text style={styles.heading}>{t('humanPerformance.leaderboard')}</Text>
       <Text style={[styles.body, { marginBottom: 16 }]}>{t('humanPerformance.topPerformers')}</Text>
+      {data.length === 0 && <Text style={styles.body}>No synced leaderboard entries yet.</Text>}
       {data.map((name, index) => (
         <View key={name} style={[styles.memberCard, index === 0 && styles.lbFirst]}>
           <Text style={styles.rank}>{index + 1}</Text>
@@ -280,6 +260,7 @@ function LeaderboardScreen({ onNext }: { onNext: () => void }) {
 
 function WriteUpScreen({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
+  const { team } = useTeam();
   const fields = translatedArray(t('humanPerformance.writeUpFields', { returnObjects: true }));
 
   return (
@@ -287,15 +268,7 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
       <Text style={styles.heading}>{t('humanPerformance.writeUp')}</Text>
       <Text style={[styles.body, { marginBottom: 14 }]}>{t('humanPerformance.documentFindings')}</Text>
       <SpeechButton text={fields} style={styles.speech} />
-      {fields.map((field) => (
-        <View key={field} style={styles.inputGroup}>
-          <Text style={styles.label}>{field}</Text>
-          <TextInput style={styles.textarea} multiline editable={false} textAlignVertical="top" />
-        </View>
-      ))}
-      <TouchableOpacity style={styles.primaryButton} onPress={onBack}>
-        <Text style={styles.primaryButtonText}>{t('common.completeActivity')}</Text>
-      </TouchableOpacity>
+      <ReflectionForm activityId="humanPerformance" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
     </ScrollView>
   );
 }
@@ -359,6 +332,7 @@ const styles = StyleSheet.create({
   barBg: { backgroundColor: '#DDE8EE', borderRadius: 4, height: 8, overflow: 'hidden' },
   barFill: { backgroundColor: stemmColors.green, borderRadius: 4, height: 8, width: '82%' },
   scoreWrap: { alignItems: 'center', height: 220, justifyContent: 'center', marginBottom: 24, position: 'relative', width: 220 },
+  scoreSvg: { transform: [{ rotate: '-90deg' }] },
   scoreCopy: { alignItems: 'center', position: 'absolute' },
   scoreNumber: { color: stemmColors.green, fontSize: 54, fontWeight: '900' },
   statRow: { backgroundColor: stemmColors.surface, borderRadius: 14, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, padding: 14, width: '100%' },

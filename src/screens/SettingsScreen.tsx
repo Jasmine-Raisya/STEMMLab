@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { useTranslation } from 'react-i18next';
+
 import { LanguageToggle } from '../components/LanguageToggle';
 import { stemmColors } from '../components/ActivityScaffold';
 import { useTheme } from '../ThemeContext';
-import { useFirebaseAuth } from '../services/authService';
 import { useTeam } from '../services/teamContext';
 
-interface Props { onBack: () => void; }
+interface Props {
+  onBack: () => void;
+  onLoggedOut: () => void;
+}
 
 function Toggle({ on, onPress }: { on: boolean; onPress: () => void }) {
   return (
@@ -23,16 +26,16 @@ function Toggle({ on, onPress }: { on: boolean; onPress: () => void }) {
   );
 }
 
-export function SettingsScreen({ onBack }: Props) {
+export function SettingsScreen({ onBack, onLoggedOut }: Props) {
   const { theme, toggleTheme } = useTheme();
   const { t } = useTranslation();
-  const { signOut } = useFirebaseAuth();
-  const { setTeam } = useTeam();
+  const { logOutTeam, team } = useTeam();
   const isDark = theme === 'dark';
 
   const [gps, setGps] = useState(false);
   const [sound, setSound] = useState(true);
   const [notifs, setNotifs] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const bg = isDark ? '#1a1a1a' : '#fff';
   const cardBg = isDark ? '#242424' : '#fff';
@@ -54,11 +57,15 @@ export function SettingsScreen({ onBack }: Props) {
   ];
 
   const handleLogout = async () => {
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
     try {
-      await signOut();
-      await setTeam(null);
-    } catch (e) {
-      console.error('Logout error:', e);
+      await logOutTeam();
+      onLoggedOut();
+    } catch (error) {
+      console.warn('Unable to log out team.', error);
+    } finally {
+      setIsLoggingOut(false);
     }
   };
 
@@ -80,6 +87,14 @@ export function SettingsScreen({ onBack }: Props) {
           <LanguageToggle />
         </View>
 
+        {team && (
+          <View style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}>
+            <Text style={[styles.rowLabel, { color: text }]}>{team.teamName}</Text>
+            <Text style={[styles.rowSub, { color: sub }]}>{t('common.teamId')}: {team.authUid ?? team.id}</Text>
+            <Text style={[styles.rowSub, { color: sub }]}>{team.representativeEmail}</Text>
+          </View>
+        )}
+
         {rows.map((row) => (
           <View key={row.label} style={[styles.card, { backgroundColor: cardBg, borderColor: border }]}>
             <View style={styles.row}>
@@ -95,13 +110,8 @@ export function SettingsScreen({ onBack }: Props) {
           </View>
         ))}
 
-        {/* Logout */}
-        <TouchableOpacity
-          onPress={handleLogout}
-          style={[styles.card, styles.logoutBtn, { backgroundColor: '#fee2e2', borderColor: '#fca5a5' }]}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.rowLabel, { color: '#dc2626', textAlign: 'center', marginBottom: 0 }]}>Logout</Text>
+        <TouchableOpacity accessibilityRole="button" activeOpacity={0.85} onPress={handleLogout} style={[styles.logoutButton, isLoggingOut && styles.logoutButtonDisabled]}>
+          <Text style={styles.logoutText}>{isLoggingOut ? t('common.signingOut') : t('common.logOut')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -137,5 +147,7 @@ const styles = StyleSheet.create({
   rowSub: { fontSize: 14 },
   toggle: { borderRadius: 14, height: 28, position: 'relative', width: 48 },
   knob: { backgroundColor: '#fff', borderRadius: 12, elevation: 2, height: 24, position: 'absolute', top: 2, width: 24 },
-  logoutBtn: { alignItems: 'center', paddingVertical: 14 },
+  logoutButton: { alignItems: 'center', backgroundColor: '#d4183d', borderRadius: 14, marginBottom: 28, marginTop: 4, paddingVertical: 15 },
+  logoutButtonDisabled: { opacity: 0.55 },
+  logoutText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });

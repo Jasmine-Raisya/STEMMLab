@@ -1,10 +1,15 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Svg, { Line, Polyline, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Rect, Text as SvgText } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
 import { SpeechButton } from '../../components/SpeechButton';
+import { BatteryWarning } from '../../components/BatteryWarning';
+import { SensorLineChart } from '../../components/SensorLineChart';
+import { useAccelerometerStream } from '../../hooks/useAccelerometerStream';
+import { ReflectionForm } from '../../components/ReflectionForm';
+import { useTeam } from '../../services/teamContext';
 
 interface Props { onBack: () => void; }
 
@@ -49,42 +54,21 @@ function BuildModeScreen({ onNext }: { onNext: () => void }) {
 function SeismographScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
   const [recording, setRecording] = useState(false);
-  const [wave, setWave] = useState<number[]>([]);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    if (recording) {
-      timerRef.current = setInterval(() => {
-        setWave((previous) => [...previous, Math.sin(previous.length * 0.2) * 30 + Math.random() * 10].slice(-60));
-      }, 50);
-    } else if (timerRef.current) {
-      clearInterval(timerRef.current);
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [recording]);
-
-  const points = wave.map((y, index) => `${(index / 60) * 300},${75 - y}`).join(' ');
+  const stream = useAccelerometerStream({ activityId: 'earthquake', active: recording, threshold: 2.2 });
 
   return (
     <View style={[s.pad, s.flex, s.darkScreen]}>
       <Text style={[s.heading, s.darkText]}>{t('earthquake.seismograph')}</Text>
       <Text style={s.darkMuted}>{t('earthquake.seismographSub')}</Text>
       <SpeechButton text={t('earthquake.seismographSub')} style={s.speech} />
-      <View style={s.darkPanel}>
-        <Svg width="100%" height={150} viewBox="0 0 300 150">
-          <Line x1="0" y1="75" x2="300" y2="75" stroke="rgba(76,175,80,0.3)" strokeWidth="1" />
-          {wave.length > 1 && <Polyline points={points} fill="none" stroke="#4CAF50" strokeWidth="2" />}
-        </Svg>
-      </View>
+      <BatteryWarning />
+      <SensorLineChart samples={stream.samples} label={t('data.acceleration')} color={stemmColors.green} />
       <TouchableOpacity style={[s.btn, { backgroundColor: recording ? '#C53A2C' : stemmColors.green }]} onPress={() => setRecording(!recording)}>
         <Text style={s.btnText}>{recording ? t('earthquake.stopRecording') : t('earthquake.startRecording')}</Text>
       </TouchableOpacity>
       <View style={s.darkStatus}>
         <Text style={s.darkMuted}>{t('earthquake.recordingStatus')}</Text>
-        <Text style={s.darkText}>{recording ? t('earthquake.recordingData') : t('earthquake.readyToRecord')}</Text>
+        <Text style={s.darkText}>{stream.battery.shouldThrottle ? 'Low-power sampling enabled' : recording ? t('earthquake.recordingData') : t('earthquake.readyToRecord')}</Text>
       </View>
       <TouchableOpacity style={s.btn} onPress={onNext}>
         <Text style={s.btnText}>{t('common.viewResults')}</Text>
@@ -116,15 +100,18 @@ function PeakDataScreen({ onNext }: { onNext: () => void }) {
 
 function LeaderboardScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
+  const { team } = useTeam();
+  const teams = team ? [team.teamName] : [];
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('common.leaderboard')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('earthquake.rankedBy')}</Text>
-      {['Phoenix Innovators', 'Tech Titans', 'Build Masters', 'Quake Squad'].map((team, index) => (
-        <View key={team} style={s.lbRow}>
+      {teams.length === 0 && <Text style={s.body}>No synced leaderboard entries yet.</Text>}
+      {teams.map((teamName, index) => (
+        <View key={teamName} style={s.lbRow}>
           <Text style={s.rank}>{index + 1}</Text>
-          <Text style={[s.cardTitle, s.flex]}>{team}</Text>
+          <Text style={[s.cardTitle, s.flex]}>{teamName}</Text>
           <Text style={s.score}>{(3.2 + index * 0.5).toFixed(1)}mm</Text>
         </View>
       ))}
@@ -137,6 +124,7 @@ function LeaderboardScreen({ onNext }: { onNext: () => void }) {
 
 function ReflectionScreen({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
+  const { team } = useTeam();
   const fields = translatedArray(t('earthquake.writeUpFields', { returnObjects: true }));
 
   return (
@@ -144,17 +132,7 @@ function ReflectionScreen({ onBack }: { onBack: () => void }) {
       <Text style={s.heading}>{t('earthquake.reflection')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('earthquake.reflectionSub')}</Text>
       <SpeechButton text={fields} style={s.speech} />
-      {fields.map((field) => (
-        <View key={field} style={s.inputGroup}>
-          <Text style={s.label}>{field}</Text>
-          <TextInput style={s.textarea} multiline editable={false} textAlignVertical="top" />
-        </View>
-      ))}
-      <Text style={[s.label, { textAlign: 'center' }]}>{t('earthquake.funRating')}</Text>
-      <Text style={s.stars}>★★★★★</Text>
-      <TouchableOpacity style={s.btn} onPress={onBack}>
-        <Text style={s.btnText}>{t('common.completeActivity')}</Text>
-      </TouchableOpacity>
+      <ReflectionForm activityId="earthquake" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
     </ScrollView>
   );
 }

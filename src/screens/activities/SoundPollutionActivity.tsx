@@ -1,14 +1,31 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet, TextInput } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Line, Circle } from 'react-native-svg';
 import { useTranslation } from 'react-i18next';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
 import { SpeechButton } from '../../components/SpeechButton';
+import { BatteryWarning } from '../../components/BatteryWarning';
+import { SensorLineChart } from '../../components/SensorLineChart';
+import { SchoolMap } from '../../components/SchoolMap';
+import { useSoundMeter } from '../../hooks/useSoundMeter';
+import { getRecentSensorSamples } from '../../services/localDb';
+import { SensorSample } from '../../types/models';
+import { ReflectionForm } from '../../components/ReflectionForm';
 import { useTeam } from '../../services/teamContext';
-import { saveExperimentRecordLocal } from '../../services/localDb';
 
 interface Props { onBack: () => void; }
+
+const SvgDefs = Defs as unknown as React.ComponentType<{ children: React.ReactNode }>;
+
+interface SoundActionLog {
+  id: string;
+  name: string;
+  decibel: number;
+  min: number;
+  max: number;
+  timestamp: number;
+}
 
 function translatedArray(value: unknown) {
   return Array.isArray(value) ? value.map(String) : [];
@@ -42,31 +59,57 @@ function InstructionScreen({ onNext }: { onNext: () => void }) {
   );
 }
 
-function DecibelMeterScreen({ onNext }: { onNext: () => void }) {
+function DecibelMeterScreen({
+  logs,
+  onAddLog,
+  onNext,
+}: {
+  logs: SoundActionLog[];
+  onAddLog: (log: SoundActionLog) => void;
+  onNext: () => void;
+}) {
   const { t } = useTranslation();
-  const db = 68;
+  const meter = useSoundMeter();
+  const [actionName, setActionName] = useState('');
+  const db = meter.decibel;
   const pct = (db / 120) * 100;
   const angle = -90 + (pct / 100) * 180;
   const rad = (angle * Math.PI) / 180;
   const needleX = 100 + 80 * Math.cos(rad);
   const needleY = 90 + 80 * Math.sin(rad);
   const color = db < 40 ? '#4CAF50' : db < 70 ? '#FFC107' : '#F44336';
+  const trimmedActionName = actionName.trim();
+
+  const handleAddLog = () => {
+    if (!trimmedActionName) return;
+    const recentValues = meter.samples.slice(-10).map((sample) => sample.value);
+    const values = recentValues.length > 0 ? recentValues : [db];
+    onAddLog({
+      id: `${Date.now()}-${trimmedActionName}`,
+      name: trimmedActionName,
+      decibel: Math.round(values.reduce((sum, value) => sum + value, 0) / values.length),
+      min: Math.min(...values),
+      max: Math.max(...values),
+      timestamp: Date.now(),
+    });
+    setActionName('');
+  };
 
   return (
-    <View style={[s.pad, s.flex]}>
+    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('sound.meter')}</Text>
-      <Text style={[s.muted, { marginBottom: 24 }]}>{t('sound.meterSub')}</Text>
+      <Text style={[s.muted, { marginBottom: 12 }]}>{t('sound.meterSub')}</Text>
       <SpeechButton text={t('sound.meterSub')} style={s.speech} />
-      <View style={s.center}>
-        <Svg width={260} height={140} viewBox="0 0 200 110">
-          {/* @ts-ignore */}
-          <Defs>
+      <BatteryWarning />
+      <View style={s.meterCard}>
+        <Svg width="100%" height={118} viewBox="0 0 200 110">
+          <SvgDefs>
             <LinearGradient id="g" x1="0%" y1="0%" x2="100%" y2="0%">
               <Stop offset="0%" stopColor="#4CAF50" />
               <Stop offset="50%" stopColor="#FFC107" />
               <Stop offset="100%" stopColor="#F44336" />
             </LinearGradient>
-          </Defs>
+          </SvgDefs>
           <Path d="M 10 90 A 80 80 0 0 1 190 90" fill="none" stroke="#e0e0e0" strokeWidth="20" strokeLinecap="round" />
           <Path d="M 10 90 A 80 80 0 0 1 190 90" fill="none" stroke="url(#g)" strokeWidth="20" strokeLinecap="round" strokeDasharray={`${pct * 2.51} 1000`} />
           <Line x1="100" y1="90" x2={needleX} y2={needleY} stroke={color} strokeWidth="3" strokeLinecap="round" />
@@ -87,35 +130,63 @@ function DecibelMeterScreen({ onNext }: { onNext: () => void }) {
           ))}
         </View>
       </View>
+      <SensorLineChart samples={meter.samples} label="dB" color="#0074D9" />
+      <View style={s.logPanel}>
+        <Text style={s.label}>{t('sound.actionName')}</Text>
+        <TextInput
+          onChangeText={setActionName}
+          placeholder={t('sound.actionNamePlaceholder')}
+          style={s.input}
+          value={actionName}
+        />
+        <TouchableOpacity disabled={!trimmedActionName} style={[s.outlineBtn, !trimmedActionName && s.disabled]} onPress={handleAddLog}>
+          <Text style={s.outlineBtnText}>{t('sound.addActionRecord')}</Text>
+        </TouchableOpacity>
+        {logs.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.logPreviewStrip}>
+            {logs.map((log) => (
+              <View key={log.id} style={s.logPreviewCard}>
+                <Text style={s.cardTitle} numberOfLines={1}>{log.name}</Text>
+                <Text style={s.muted}>{log.min}-{log.max} dB</Text>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+      </View>
+      <TouchableOpacity style={[s.btn, { backgroundColor: meter.recording ? '#C53A2C' : stemmColors.green }]} onPress={meter.recording ? meter.stop : meter.start}>
+        <Text style={s.btnText}>{meter.recording ? t('common.stop') : t('common.start')}</Text>
+      </TouchableOpacity>
       <TouchableOpacity style={s.btn} onPress={onNext}>
         <Text style={s.btnText}>{t('sound.logActions')}</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
-function ActionLoggerScreen({ onNext }: { onNext: () => void }) {
+function ActionLoggerScreen({ logs, onNext }: { logs: SoundActionLog[]; onNext: () => void }) {
   const { t } = useTranslation();
-  const actions = translatedArray(t('sound.actions', { returnObjects: true }));
-  const levels = ['65-75 dB', '80-90 dB', '30-40 dB', '70-80 dB', '50-60 dB', '75-85 dB'];
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('sound.actionLogger')}</Text>
-      <Text style={[s.muted, { marginBottom: 16 }]}>{t('sound.actionLoggerSub')}</Text>
-      <SpeechButton text={[t('sound.actionLoggerSub'), t('sound.samplesNote')]} style={s.speech} />
-      <View style={s.grid}>
-        {actions.map((name, index) => (
-          <TouchableOpacity key={name} style={s.actionCard} activeOpacity={0.8}>
-            <Text style={s.actionInitial}>{name.slice(0, 2)}</Text>
-            <Text style={s.cardTitle}>{name}</Text>
-            <Text style={s.muted}>{levels[index]}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-      <View style={s.infoBox}>
-        <Text style={s.body}>{t('sound.samplesNote')}</Text>
-      </View>
+      <Text style={[s.muted, { marginBottom: 16 }]}>{t('sound.actionReportSub')}</Text>
+      <SpeechButton text={[t('sound.actionReportSub'), t('sound.samplesNote')]} style={s.speech} />
+      {logs.length === 0 ? (
+        <View style={s.infoBox}>
+          <Text style={s.body}>{t('sound.noActionLogs')}</Text>
+        </View>
+      ) : (
+        <View style={s.grid}>
+          {logs.map((log, index) => (
+            <View key={log.id} style={s.actionCard}>
+              <Text style={s.actionInitial}>{index + 1}</Text>
+              <Text style={s.cardTitle}>{log.name}</Text>
+              <Text style={s.scoreText}>{log.decibel} dB</Text>
+              <Text style={s.muted}>{t('sound.dbRange')}: {log.min}-{log.max} dB</Text>
+            </View>
+          ))}
+        </View>
+      )}
       <TouchableOpacity style={s.btn} onPress={onNext}>
         <Text style={s.btnText}>{t('common.nextStep')}</Text>
       </TouchableOpacity>
@@ -126,13 +197,23 @@ function ActionLoggerScreen({ onNext }: { onNext: () => void }) {
 function LocationTaggerScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
   const locations = translatedArray(t('sound.locations', { returnObjects: true }));
+  const [samples, setSamples] = useState<SensorSample[]>([]);
+  useEffect(() => {
+    getRecentSensorSamples('sound', 50).then(setSamples);
+  }, []);
+  const geoSamples = samples.filter((sample) => sample.latitude && sample.longitude);
+  const first = geoSamples[0];
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('sound.locationTagger')}</Text>
       <Text style={[s.muted, { marginBottom: 16 }]}>{t('sound.locationSub')}</Text>
       <View style={s.mapBox}>
-        <Text style={s.mapText}>MAP</Text>
+        {first ? (
+          <SchoolMap samples={geoSamples} />
+        ) : (
+          <Text style={s.mapText}>MAP</Text>
+        )}
       </View>
       {locations.map((name, index) => (
         <View key={name} style={s.locRow}>
@@ -195,6 +276,7 @@ function RiskChartScreen({ onNext }: { onNext: () => void }) {
 
 function WriteUpScreen({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
+  const { team } = useTeam();
   const fields = translatedArray(t('sound.writeUpFields', { returnObjects: true }));
 
   return (
@@ -202,44 +284,18 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
       <Text style={s.heading}>{t('common.writeUp')}</Text>
       <Text style={[s.muted, { marginBottom: 16 }]}>{t('sound.writeSub')}</Text>
       <SpeechButton text={fields} style={s.speech} />
-      {fields.map((field) => (
-        <View key={field} style={s.inputGroup}>
-          <Text style={s.label}>{field}</Text>
-          <TextInput style={s.textarea} multiline editable={false} textAlignVertical="top" />
-        </View>
-      ))}
-      <TouchableOpacity style={[s.btn, { marginBottom: 32 }]} onPress={onBack}>
-        <Text style={s.btnText}>{t('common.completeActivity')}</Text>
-      </TouchableOpacity>
+      <ReflectionForm activityId="sound" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
     </ScrollView>
   );
 }
 
 export function SoundPollutionActivity({ onBack }: Props) {
   const { t } = useTranslation();
-  const { team } = useTeam();
   const [step, setStep] = React.useState(1);
+  const [actionLogs, setActionLogs] = useState<SoundActionLog[]>([]);
   const total = 6;
-
-  const handleCompleteActivity = () => {
-    if (team) {
-      try {
-        saveExperimentRecordLocal({
-          id: `sound_${Date.now()}`,
-          teamId: team.teamId,
-          activityId: 'sound',
-          score: 68,
-          timestamp: Date.now(),
-          details: {
-            location: 'Lab Room 2',
-            riskLevel: 'Moderate'
-          }
-        });
-      } catch (e) {
-        console.error('Failed to save sound pollution experiment to SQLite:', e);
-      }
-    }
-    onBack();
+  const addActionLog = (log: SoundActionLog) => {
+    setActionLogs((previous) => [log, ...previous]);
   };
 
   return (
@@ -253,11 +309,11 @@ export function SoundPollutionActivity({ onBack }: Props) {
       />
       <View style={s.flex}>
         {step === 1 && <InstructionScreen onNext={() => setStep(2)} />}
-        {step === 2 && <DecibelMeterScreen onNext={() => setStep(3)} />}
-        {step === 3 && <ActionLoggerScreen onNext={() => setStep(4)} />}
+        {step === 2 && <DecibelMeterScreen logs={actionLogs} onAddLog={addActionLog} onNext={() => setStep(3)} />}
+        {step === 3 && <ActionLoggerScreen logs={actionLogs} onNext={() => setStep(4)} />}
         {step === 4 && <LocationTaggerScreen onNext={() => setStep(5)} />}
         {step === 5 && <RiskChartScreen onNext={() => setStep(6)} />}
-        {step === 6 && <WriteUpScreen onBack={handleCompleteActivity} />}
+        {step === 6 && <WriteUpScreen onBack={onBack} />}
       </View>
     </View>
   );
@@ -277,16 +333,25 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: 18, fontWeight: '800', color: stemmColors.blue, marginBottom: 8 },
   btn: { backgroundColor: stemmColors.blue, borderRadius: 14, alignItems: 'center', justifyContent: 'center', minHeight: 52, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 8 },
   btnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  outlineBtn: { alignItems: 'center', borderColor: stemmColors.blue, borderRadius: 14, borderWidth: 2, justifyContent: 'center', minHeight: 50, paddingHorizontal: 16, paddingVertical: 12 },
+  outlineBtnText: { color: stemmColors.blue, fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  disabled: { opacity: 0.45 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  dbValue: { fontSize: 58, fontWeight: '900', marginTop: 8 },
-  legend: { flexDirection: 'row', gap: 14, marginTop: 16 },
+  meterCard: { alignItems: 'center', backgroundColor: '#F8FAFC', borderColor: stemmColors.border, borderRadius: 16, borderWidth: 1, marginBottom: 14, paddingHorizontal: 12, paddingTop: 8, paddingBottom: 14 },
+  dbValue: { fontSize: 46, fontWeight: '900', marginTop: 0 },
+  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, justifyContent: 'center', marginTop: 10 },
   legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   legendDot: { width: 12, height: 12, borderRadius: 6 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14 },
   actionCard: { width: '47%', borderWidth: 2, borderRadius: 14, borderColor: '#0074D9', padding: 14, alignItems: 'center', backgroundColor: '#fff' },
   actionInitial: { color: '#0074D9', fontSize: 20, fontWeight: '900', marginBottom: 6 },
   cardTitle: { color: stemmColors.text, fontSize: 16, fontWeight: '800' },
+  scoreText: { color: stemmColors.blue, fontSize: 22, fontWeight: '900', marginTop: 4 },
   infoBox: { backgroundColor: '#EBF5FF', borderRadius: 14, padding: 14, marginBottom: 14 },
+  input: { backgroundColor: '#fff', borderColor: stemmColors.border, borderRadius: 12, borderWidth: 1, color: stemmColors.text, fontSize: 16, marginBottom: 10, paddingHorizontal: 14, paddingVertical: 12 },
+  logPanel: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 16, borderWidth: 1, marginBottom: 14, padding: 14 },
+  logPreviewStrip: { marginTop: 12 },
+  logPreviewCard: { backgroundColor: '#fff', borderColor: stemmColors.border, borderRadius: 12, borderWidth: 1, marginRight: 10, minWidth: 116, padding: 12 },
   mapBox: { backgroundColor: '#f3f4f6', borderRadius: 16, height: 160, alignItems: 'center', justifyContent: 'center', marginBottom: 16 },
   mapText: { color: '#0074D9', fontSize: 32, fontWeight: '900', opacity: 0.42 },
   locRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderColor: '#e5e7eb', borderRadius: 14, padding: 14, marginBottom: 8 },

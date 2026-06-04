@@ -34,6 +34,12 @@ jest.mock('expo-location', () => ({
 }));
 
 jest.mock('expo-sqlite', () => ({
+  openDatabaseSync: jest.fn(() => ({
+    execSync: jest.fn(),
+    runSync: jest.fn(),
+    getFirstSync: jest.fn(() => null),
+    getAllSync: jest.fn(() => []),
+  })),
   openDatabaseAsync: jest.fn(async () => ({
     execAsync: jest.fn(),
     runAsync: jest.fn(),
@@ -55,6 +61,47 @@ jest.mock('expo-notifications', () => ({
   requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
   scheduleNotificationAsync: jest.fn(),
 }));
+
+jest.mock('expo-image-picker', () => ({
+  requestMediaLibraryPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  launchImageLibraryAsync: jest.fn(async () => ({ canceled: true, assets: [] })),
+}));
+
+jest.mock('expo-audio', () => ({
+  RecordingPresets: { HIGH_QUALITY: {} },
+  requestRecordingPermissionsAsync: jest.fn(async () => ({ granted: true })),
+  setAudioModeAsync: jest.fn(async () => undefined),
+  useAudioRecorder: jest.fn(() => ({
+    isRecording: false,
+    prepareToRecordAsync: jest.fn(async () => undefined),
+    record: jest.fn(),
+    stop: jest.fn(async () => undefined),
+  })),
+  useAudioRecorderState: jest.fn(() => ({ isRecording: false, metering: -120 })),
+}));
+
+jest.mock('expo-camera', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    CameraView: (props) => React.createElement(View, props, props.children),
+    useCameraPermissions: jest.fn(() => [{ granted: true }, jest.fn(async () => ({ granted: true }))]),
+  };
+});
+
+jest.mock('expo-video', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    VideoView: (props) => React.createElement(View, props, props.children),
+    useVideoPlayer: jest.fn(() => ({
+      addListener: jest.fn(() => ({ remove: jest.fn() })),
+      replace: jest.fn(),
+      replaceAsync: jest.fn(async () => undefined),
+      currentTime: 0,
+    })),
+  };
+});
 
 jest.mock('react-native-maps', () => {
   const React = require('react');

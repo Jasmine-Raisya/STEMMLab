@@ -1,0 +1,42 @@
+import { addDoc, collection, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, doc } from 'firebase/firestore';
+
+import { db as firestore } from '../../firebase-config';
+import { ActivityLog, ActivityReflection, LeaderboardEntry, SensorSample, TeamProfile } from '../types/models';
+
+function ensureFirebase() {
+  if (!process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID) throw new Error('Firebase environment variables are not configured.');
+}
+
+export async function syncTeamProfile(profile: TeamProfile) {
+  ensureFirebase();
+  await setDoc(doc(firestore, 'users', profile.authUid ?? profile.id), { ...profile, role: 'team', updatedAt: serverTimestamp() }, { merge: true });
+}
+
+export async function fetchTeamProfile(teamId: string) {
+  ensureFirebase();
+  const snapshot = await getDoc(doc(firestore, 'users', teamId));
+  if (!snapshot.exists()) return null;
+  return snapshot.data() as TeamProfile;
+}
+
+export async function syncSensorSamples(samples: SensorSample[]) {
+  ensureFirebase();
+  await Promise.all(samples.map((sample) => addDoc(collection(firestore, 'sensorSamples'), { ...sample, syncedAt: serverTimestamp() })));
+}
+
+export async function syncActivityLog(log: ActivityLog) {
+  ensureFirebase();
+  await addDoc(collection(firestore, 'activityLogs'), { ...log, syncedAt: serverTimestamp() });
+}
+
+export async function syncActivityReflection(reflection: ActivityReflection) {
+  ensureFirebase();
+  await addDoc(collection(firestore, 'activityReflections'), { ...reflection, syncedAt: serverTimestamp() });
+}
+
+export async function fetchLeaderboard(activityId: string) {
+  ensureFirebase();
+  const leaderboardQuery = query(collection(firestore, 'leaderboards', activityId, 'entries'), orderBy('score', 'desc'), limit(20));
+  const snapshot = await getDocs(leaderboardQuery);
+  return snapshot.docs.map((entry) => entry.data() as LeaderboardEntry);
+}
