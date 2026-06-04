@@ -121,7 +121,7 @@ function AppNavigator() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
 
-        {activeScreen === ROUTES.splash && <SplashScreen onNext={() => navigate(ROUTES.register)} />}
+        {activeScreen === ROUTES.splash && <SplashScreen onNext={() => navigate(ROUTES.register)} onLogin={() => navigate(ROUTES.register)} />}
         {activeScreen === ROUTES.register && <TeamSetupScreen onRegistered={() => navigate(ROUTES.teamCode)} onSignedIn={() => navigate(ROUTES.dashboard)} />}
         {activeScreen === ROUTES.teamCode && <DiscriminatorRevealScreen teamData={{ teamId: team?.id ?? '' }} onNext={() => navigate(ROUTES.dashboard)} />}
         {activeScreen === ROUTES.dashboard && <MainDashboardScreen onNavigate={navigate} />}

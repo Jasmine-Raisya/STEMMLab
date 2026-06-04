@@ -1,5 +1,40 @@
 require('@testing-library/jest-native/extend-expect');
 
+jest.mock('firebase/app', () => ({
+  getApps: jest.fn(() => []),
+  initializeApp: jest.fn(() => ({ name: 'mock-app' })),
+}));
+
+jest.mock('firebase/auth', () => ({
+  createUserWithEmailAndPassword: jest.fn(),
+  getAuth: jest.fn(() => ({ currentUser: null })),
+  initializeAuth: jest.fn(() => ({ currentUser: null })),
+  onAuthStateChanged: jest.fn(() => jest.fn()),
+  signInWithEmailAndPassword: jest.fn(),
+  signOut: jest.fn(),
+  updateProfile: jest.fn(),
+}));
+
+jest.mock('firebase/firestore', () => ({
+  addDoc: jest.fn(),
+  collection: jest.fn((...segments) => ({ segments })),
+  doc: jest.fn((...segments) => ({ segments })),
+  getDoc: jest.fn(),
+  getDocs: jest.fn(),
+  getFirestore: jest.fn(() => ({ type: 'mock-firestore' })),
+  limit: jest.fn((value) => ({ limit: value })),
+  orderBy: jest.fn((field, direction) => ({ field, direction })),
+  query: jest.fn((...parts) => ({ parts })),
+  serverTimestamp: jest.fn(() => 'mock-server-timestamp'),
+  setDoc: jest.fn(),
+}));
+
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(async () => null),
+  setItem: jest.fn(async () => undefined),
+  removeItem: jest.fn(async () => undefined),
+}));
+
 jest.mock('expo-localization', () => ({
   getLocales: jest.fn(() => [{ languageCode: 'en' }]),
 }));
@@ -54,6 +89,23 @@ jest.mock('expo-notifications', () => ({
   getPermissionsAsync: jest.fn(async () => ({ granted: true })),
   requestPermissionsAsync: jest.fn(async () => ({ granted: true })),
   scheduleNotificationAsync: jest.fn(),
+}));
+
+jest.mock('expo-speech', () => ({
+  speak: jest.fn(),
+  stop: jest.fn(),
+}));
+
+jest.mock('expo-background-task', () => ({
+  BackgroundTaskResult: { Success: 'success', Failed: 'failed' },
+  BackgroundTaskStatus: { Available: 'available' },
+  getStatusAsync: jest.fn(async () => 'available'),
+  registerTaskAsync: jest.fn(async () => undefined),
+}));
+
+jest.mock('expo-task-manager', () => ({
+  defineTask: jest.fn(),
+  isTaskRegisteredAsync: jest.fn(async () => false),
 }));
 
 jest.mock('expo-image-picker', () => ({
