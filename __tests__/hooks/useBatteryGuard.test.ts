@@ -28,4 +28,23 @@ describe('useBatteryGuard', () => {
     expect(result.current.isLow).toBe(false);
     expect(result.current.shouldThrottle).toBe(true);
   });
+
+  it('does not crash when battery listeners are unavailable on web', async () => {
+    const batteryApi = Battery as unknown as {
+      addBatteryLevelListener?: unknown;
+      addLowPowerModeListener?: unknown;
+    };
+    const addBatteryLevelListener = batteryApi.addBatteryLevelListener;
+    const addLowPowerModeListener = batteryApi.addLowPowerModeListener;
+    batteryApi.addBatteryLevelListener = undefined;
+    batteryApi.addLowPowerModeListener = undefined;
+    (Battery.getPowerStateAsync as jest.Mock).mockResolvedValue({ batteryLevel: 0.6, lowPowerMode: false });
+
+    const { result, unmount } = renderHook(() => useBatteryGuard());
+
+    await waitFor(() => expect(result.current.percent).toBe(60));
+    expect(() => unmount()).not.toThrow();
+    batteryApi.addBatteryLevelListener = addBatteryLevelListener;
+    batteryApi.addLowPowerModeListener = addLowPowerModeListener;
+  });
 });

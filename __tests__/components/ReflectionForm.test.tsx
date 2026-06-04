@@ -3,9 +3,14 @@ import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import { ReflectionForm } from '../../src/components/ReflectionForm';
 import { insertActivityReflection } from '../../src/services/localDb';
+import { syncPendingLocalData } from '../../src/services/syncService';
 
 jest.mock('../../src/services/localDb', () => ({
   insertActivityReflection: jest.fn(async () => undefined),
+}));
+
+jest.mock('../../src/services/syncService', () => ({
+  syncPendingLocalData: jest.fn(async () => ({ skipped: false, samples: 0, logs: 0, reflections: 1 })),
 }));
 
 describe('ReflectionForm', () => {
@@ -46,6 +51,7 @@ describe('ReflectionForm', () => {
     fireEvent.press(getByText('Save Reflection'));
 
     await waitFor(() => expect(insertActivityReflection).toHaveBeenCalled());
+    expect(syncPendingLocalData).toHaveBeenCalledTimes(1);
     expect(onSaved).toHaveBeenCalledTimes(1);
   });
 });

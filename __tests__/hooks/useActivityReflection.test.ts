@@ -2,9 +2,14 @@ import { act, renderHook } from '@testing-library/react-native';
 
 import { useActivityReflection } from '../../src/hooks/useActivityReflection';
 import { insertActivityReflection } from '../../src/services/localDb';
+import { syncPendingLocalData } from '../../src/services/syncService';
 
 jest.mock('../../src/services/localDb', () => ({
   insertActivityReflection: jest.fn(async () => undefined),
+}));
+
+jest.mock('../../src/services/syncService', () => ({
+  syncPendingLocalData: jest.fn(async () => ({ skipped: false, samples: 0, logs: 0, reflections: 1 })),
 }));
 
 describe('useActivityReflection', () => {
@@ -51,5 +56,6 @@ describe('useActivityReflection', () => {
       answers: { 'What happened?': 'The second trial was smoother.' },
       timestamp: 1234,
     });
+    expect(syncPendingLocalData).toHaveBeenCalledTimes(1);
   });
 });

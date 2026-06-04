@@ -1,7 +1,7 @@
 import { addDoc, collection, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, doc } from 'firebase/firestore';
 
 import { firestore, isFirebaseConfigured } from './firebaseConfig';
-import { ActivityLog, ActivityReflection, LeaderboardEntry, SensorSample, TeamProfile } from '../types/models';
+import { ActivityLog, ActivityReflection, ExperimentRecord, LeaderboardEntry, SensorSample, TeamProfile } from '../types/models';
 
 function ensureFirebase() {
   if (!isFirebaseConfigured) throw new Error('Firebase environment variables are not configured.');
@@ -32,6 +32,15 @@ export async function syncActivityLog(log: ActivityLog) {
 export async function syncActivityReflection(reflection: ActivityReflection) {
   ensureFirebase();
   await addDoc(collection(firestore, 'activityReflections'), { ...reflection, syncedAt: serverTimestamp() });
+}
+
+export async function syncExperimentRecords(records: ExperimentRecord[]) {
+  ensureFirebase();
+  await Promise.all(records.map((record) => setDoc(doc(firestore, 'experiment_records', record.id), {
+    ...record,
+    syncedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true })));
 }
 
 export async function fetchLeaderboard(activityId: string) {

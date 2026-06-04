@@ -50,6 +50,18 @@ export interface ActivityLog {
   synced?: boolean;
 }
 
+export interface ExperimentRecord {
+  id: string;
+  teamId: string;
+  activityId: ActivityId;
+  score: number;
+  timestamp: number;
+  authUid?: string;
+  representativeEmail?: string;
+  teamName?: string;
+  details?: Record<string, unknown>;
+}
+
 export interface LeaderboardEntry {
   teamId: string;
   teamName: string;

@@ -56,6 +56,16 @@ export async function insertActivityReflection(reflection: ActivityReflection) {
   writeStore('stemm.reflections', reflections);
 }
 
+export async function getUnsyncedActivityReflections(limit = 100) {
+  return reflections.filter((reflection) => !reflection.synced).slice(0, limit);
+}
+
+export async function markActivityReflectionsSynced(ids: number[]) {
+  const idSet = new Set(ids);
+  reflections = reflections.map((reflection) => (reflection.id && idSet.has(reflection.id) ? { ...reflection, synced: true } : reflection));
+  writeStore('stemm.reflections', reflections);
+}
+
 export async function insertActivityLog(log: ActivityLog) {
   logs = [...logs, { ...log, id: logs.length + 1, synced: log.synced ?? false }];
   writeStore('stemm.logs', logs);

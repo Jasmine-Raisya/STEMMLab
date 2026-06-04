@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import * as Battery from 'expo-battery';
 
 const LOW_BATTERY_THRESHOLD = 0.2;
+type BatterySubscription = { remove: () => void };
 
 export function useBatteryGuard() {
   const [level, setLevel] = useState(1);
@@ -18,13 +19,17 @@ export function useBatteryGuard() {
       setLowPowerMode(Boolean(state.lowPowerMode));
     });
 
-    const levelSub = Battery.addBatteryLevelListener((event) => setLevel(event.batteryLevel));
-    const powerSub = Battery.addLowPowerModeListener((event) => setLowPowerMode(event.lowPowerMode));
+    const batteryApi = Battery as typeof Battery & {
+      addBatteryLevelListener?: (listener: (event: { batteryLevel: number }) => void) => BatterySubscription;
+      addLowPowerModeListener?: (listener: (event: { lowPowerMode: boolean }) => void) => BatterySubscription;
+    };
+    const levelSub = batteryApi.addBatteryLevelListener?.((event) => setLevel(event.batteryLevel));
+    const powerSub = batteryApi.addLowPowerModeListener?.((event) => setLowPowerMode(event.lowPowerMode));
 
     return () => {
       mounted = false;
-      levelSub.remove();
-      powerSub.remove();
+      levelSub?.remove();
+      powerSub?.remove();
     };
   }, []);
 
