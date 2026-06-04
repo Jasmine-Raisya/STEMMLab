@@ -103,3 +103,5 @@ fabric.properties
 secrets.properties
 keys.properties
 signing.properties
+node_modules/
+.expo/
