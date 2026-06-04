@@ -4,6 +4,42 @@ jest.mock('expo-localization', () => ({
   getLocales: jest.fn(() => [{ languageCode: 'en' }]),
 }));
 
+jest.mock('@react-native-async-storage/async-storage', () => ({
+  getItem: jest.fn(async () => null),
+  setItem: jest.fn(async () => undefined),
+  removeItem: jest.fn(async () => undefined),
+  multiRemove: jest.fn(async () => undefined),
+}));
+
+jest.mock('firebase/app', () => ({
+  getApps: jest.fn(() => []),
+  initializeApp: jest.fn(() => ({ type: 'mock-app' })),
+}));
+
+jest.mock('firebase/auth', () => ({
+  createUserWithEmailAndPassword: jest.fn(),
+  getAuth: jest.fn(() => ({ type: 'mock-auth' })),
+  initializeAuth: jest.fn(() => ({ type: 'mock-auth' })),
+  onAuthStateChanged: jest.fn(() => jest.fn()),
+  signInWithEmailAndPassword: jest.fn(),
+  signOut: jest.fn(),
+  updateProfile: jest.fn(),
+}));
+
+jest.mock('firebase/firestore', () => ({
+  collection: jest.fn(() => ({ type: 'mock-collection' })),
+  doc: jest.fn(() => ({ type: 'mock-doc' })),
+  getDoc: jest.fn(async () => ({ exists: () => false })),
+  getDocs: jest.fn(async () => ({ docs: [] })),
+  getFirestore: jest.fn(() => ({ type: 'mock-firestore' })),
+  limit: jest.fn((value) => ({ type: 'mock-limit', value })),
+  orderBy: jest.fn((field, direction) => ({ type: 'mock-order-by', field, direction })),
+  query: jest.fn(() => ({ type: 'mock-query' })),
+  serverTimestamp: jest.fn(() => ({ type: 'mock-server-timestamp' })),
+  setDoc: jest.fn(async () => undefined),
+  where: jest.fn((field, operator, value) => ({ type: 'mock-where', field, operator, value })),
+}));
+
 require('./src/services/i18n');
 
 jest.mock('expo-sensors', () => ({

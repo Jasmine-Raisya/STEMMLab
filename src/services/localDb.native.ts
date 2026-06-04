@@ -218,8 +218,41 @@ export async function getUnsyncedActivityLogs(limit = 100) {
     team_id: string;
     payload_json: string;
     timestamp: number;
+    synced: number;
   }>('SELECT * FROM activity_logs WHERE synced = 0 ORDER BY timestamp ASC LIMIT ?', [limit]);
 }
+
+// New: Fetch unsynced activity reflections for migration to ExperimentRecord
+export async function getUnsyncedActivityReflections(limit = 100) {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{
+    id: number;
+    activity_id: string;
+    team_id: string;
+    rating: number;
+    answers_json: string;
+    timestamp: number;
+    synced: number;
+  }>('SELECT * FROM activity_reflections WHERE synced = 0 ORDER BY timestamp ASC LIMIT ?', [limit]);
+  return rows.map((row) => ({
+    id: row.id,
+    activityId: row.activity_id as ActivityReflection['activityId'],
+    teamId: row.team_id,
+    rating: row.rating,
+    answers: JSON.parse(row.answers_json) as Record<string, string>,
+    timestamp: row.timestamp,
+    synced: row.synced === 1,
+  } satisfies ActivityReflection));
+}
+
+export async function markActivityReflectionsSynced(ids: number[]) {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    await Promise.all(ids.map((id) => db.runAsync('UPDATE activity_reflections SET synced = 1 WHERE id = ?', [id])));
+  });
+}
+
 
 export async function markActivityLogsSynced(ids: number[]) {
   if (ids.length === 0) return;

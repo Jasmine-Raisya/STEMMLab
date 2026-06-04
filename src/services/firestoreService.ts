@@ -1,7 +1,7 @@
-import { addDoc, collection, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, doc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, where } from 'firebase/firestore';
 
 import { firestore, isFirebaseConfigured } from './firebaseConfig';
-import { ActivityLog, ActivityReflection, LeaderboardEntry, SensorSample, TeamProfile } from '../types/models';
+import { ExperimentRecord, LeaderboardEntry, TeamProfile } from '../types/models';
 
 function ensureFirebase() {
   if (!isFirebaseConfigured) throw new Error('Firebase environment variables are not configured.');
@@ -19,19 +19,22 @@ export async function fetchTeamProfile(teamId: string) {
   return snapshot.data() as TeamProfile;
 }
 
-export async function syncSensorSamples(samples: SensorSample[]) {
+export async function syncExperimentRecords(records: ExperimentRecord[]) {
   ensureFirebase();
-  await Promise.all(samples.map((sample) => addDoc(collection(firestore, 'sensorSamples'), { ...sample, syncedAt: serverTimestamp() })));
+  await Promise.all(records.map((record) => setDoc(doc(firestore, 'experiment_records', record.id), {
+    ...record,
+    syncedAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  }, { merge: true })));
 }
 
-export async function syncActivityLog(log: ActivityLog) {
+export async function fetchExperimentRecordsForTeam(teamId: string, maxRecords = 20) {
   ensureFirebase();
-  await addDoc(collection(firestore, 'activityLogs'), { ...log, syncedAt: serverTimestamp() });
-}
-
-export async function syncActivityReflection(reflection: ActivityReflection) {
-  ensureFirebase();
-  await addDoc(collection(firestore, 'activityReflections'), { ...reflection, syncedAt: serverTimestamp() });
+  const recordsQuery = query(collection(firestore, 'experiment_records'), where('teamId', '==', teamId), limit(maxRecords));
+  const snapshot = await getDocs(recordsQuery);
+  return snapshot.docs
+    .map((entry) => entry.data() as ExperimentRecord)
+    .sort((left, right) => right.timestamp - left.timestamp);
 }
 
 export async function fetchLeaderboard(activityId: string) {

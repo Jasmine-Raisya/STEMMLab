@@ -1,84 +1,31 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { VideoView, useVideoPlayer } from 'expo-video';
 import { useTranslation } from 'react-i18next';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import Svg, { Circle, Line, Path, Text as SvgText } from 'react-native-svg';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
-import { SpeechButton } from '../../components/SpeechButton';
 import { ReflectionForm } from '../../components/ReflectionForm';
+import { SpeechButton } from '../../components/SpeechButton';
 import { useTeam } from '../../services/teamContext';
 
-interface Props { onBack: () => void; }
+interface Props {
+  onBack: () => void;
+}
 
-type MatrixData = Record<string, Record<string, string>>;
+interface FanIteration {
+  id: string;
+  name: string;
+  videoUri: string;
+  frameUri: string;
+  bendAngle: number | null;
+}
+
+const instructionImage = require('../../../assets/exp3.jpg');
 
 function translatedArray(value: unknown) {
   return Array.isArray(value) ? value.map(String) : [];
-}
-
-function getMatrixNumbers(matrix: MatrixData) {
-  return Object.values(matrix)
-    .flatMap((row) => Object.values(row))
-    .map((value) => Number(value.replace(',', '.')))
-    .filter((value) => Number.isFinite(value));
-}
-
-function getBestMatrixResult(matrix: MatrixData) {
-  let best: { design: string; distance: string; angle: number } | null = null;
-  for (const [design, row] of Object.entries(matrix)) {
-    for (const [distance, value] of Object.entries(row)) {
-      const angle = Number(value.replace(',', '.'));
-      if (!Number.isFinite(angle)) continue;
-      if (!best || angle > best.angle) best = { design, distance, angle };
-    }
-  }
-  return best;
-}
-
-function AngleGuide({ angle, compact = false }: { angle: number; compact?: boolean }) {
-  const width = 320;
-  const height = compact ? 190 : 210;
-  const centerX = 160;
-  const centerY = compact ? 142 : 154;
-  const radius = compact ? 108 : 124;
-  const lineX = centerX + (radius - 22) * Math.cos((angle * Math.PI) / 180);
-  const lineY = centerY - (radius - 22) * Math.sin((angle * Math.PI) / 180);
-  const ticks = Array.from({ length: 19 }, (_, index) => index * 10);
-
-  return (
-    <View style={compact ? s.angleGuideCompact : s.angleGuide}>
-      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
-        <Path d={`M ${centerX - radius} ${centerY} A ${radius} ${radius} 0 0 1 ${centerX + radius} ${centerY}`} fill="none" stroke="#1f2937" strokeWidth="3" />
-        <Line x1={centerX - radius - 8} y1={centerY} x2={centerX + radius + 8} y2={centerY} stroke="#1f2937" strokeWidth="3" />
-        {[44, 84].map((innerRadius) => (
-          <Path key={innerRadius} d={`M ${centerX - innerRadius} ${centerY} A ${innerRadius} ${innerRadius} 0 0 1 ${centerX + innerRadius} ${centerY}`} fill="none" stroke="#d1d5db" strokeWidth="2" />
-        ))}
-        {ticks.map((tick) => {
-          const rad = (tick * Math.PI) / 180;
-          const outerX = centerX + radius * Math.cos(rad);
-          const outerY = centerY - radius * Math.sin(rad);
-          const innerX = centerX + (radius - (tick % 30 === 0 ? 18 : 10)) * Math.cos(rad);
-          const innerY = centerY - (radius - (tick % 30 === 0 ? 18 : 10)) * Math.sin(rad);
-          const labelX = centerX + (radius - 32) * Math.cos(rad);
-          const labelY = centerY - (radius - 32) * Math.sin(rad);
-          return (
-            <React.Fragment key={tick}>
-              <Line x1={innerX} y1={innerY} x2={outerX} y2={outerY} stroke="#4b5563" strokeWidth={tick % 30 === 0 ? 2 : 1} />
-              {tick % 30 === 0 && (
-                <SvgText x={labelX} y={labelY + 4} fill={tick === angle ? '#d4183d' : '#374151'} fontSize="12" fontWeight="700" textAnchor="middle">
-                  {tick}
-                </SvgText>
-              )}
-            </React.Fragment>
-          );
-        })}
-        <Line x1={centerX} y1={centerY} x2={lineX} y2={lineY} stroke="#9C27B0" strokeWidth="6" strokeLinecap="round" />
-        <Circle cx={centerX} cy={centerY} r="6" fill="#9C27B0" />
-      </Svg>
-      <Text style={compact ? s.angleOverlayText : s.angle}>{angle}°</Text>
-    </View>
-  );
 }
 
 function SetupGuideScreen({ onNext }: { onNext: () => void }) {
@@ -90,6 +37,7 @@ function SetupGuideScreen({ onNext }: { onNext: () => void }) {
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('handFan.setup')}</Text>
       <SpeechButton text={[t('handFan.overview'), ...equipment, ...instructions]} style={s.speech} />
+      <Image source={instructionImage} resizeMode="contain" style={s.diagramImage} />
       <View style={s.section}>
         <Text style={s.sectionTitle}>{t('parachute.overview')}</Text>
         <Text style={s.body}>{t('handFan.overview')}</Text>
@@ -109,227 +57,253 @@ function SetupGuideScreen({ onNext }: { onNext: () => void }) {
   );
 }
 
-function AngleToolScreen({ angle, onAngleChange, onNext }: { angle: number; onAngleChange: (angle: number) => void; onNext: () => void }) {
-  const { t } = useTranslation();
-  const changeAngle = (nextAngle: number) => onAngleChange(Math.min(180, Math.max(0, nextAngle)));
+function StiffnessMatrixScreen({ onNext }: { onNext: () => void }) {
+  const rows = [
+    { material: 'Tissue paper', stiffness: 'Low', expected: 'Large bend' },
+    { material: 'Bond paper', stiffness: 'Medium', expected: 'Moderate bend' },
+    { material: 'Cardboard', stiffness: 'High', expected: 'Small bend' },
+    { material: 'Layered/folded paper', stiffness: 'Variable', expected: 'Depends on design' },
+  ];
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>{t('handFan.angleTool')}</Text>
-      <Text style={[s.body, { marginBottom: 12 }]}>{t('handFan.angleSub')}</Text>
-      <SpeechButton text={t('handFan.angleSub')} style={s.speech} />
-      <View style={s.center}>
-        <AngleGuide angle={angle} />
-        <View style={s.sliderRow}>
-          <TouchableOpacity style={s.roundBtn} onPress={() => changeAngle(angle - 5)}>
-            <Text style={s.btnText}>-</Text>
-          </TouchableOpacity>
-          <View style={s.sliderTrack}>
-            <View style={[s.sliderFill, { width: `${(angle / 180) * 100}%` }]} />
+      <Text style={s.heading}>Stiffness Matrix</Text>
+      <Text style={[s.body, { marginBottom: 16 }]}>Use this reference before testing each fan iteration. Stiffer materials should bend less under the same airflow.</Text>
+      <View style={s.table}>
+        <View style={[s.tableRow, s.tableHead]}>
+          <Text style={[s.tableCell, s.tableHeadText]}>Material</Text>
+          <Text style={[s.tableCell, s.tableHeadText]}>Stiffness</Text>
+          <Text style={[s.tableCell, s.tableHeadText]}>Expected bend</Text>
+        </View>
+        {rows.map((row) => (
+          <View key={row.material} style={s.tableRow}>
+            <Text style={s.tableCell}>{row.material}</Text>
+            <Text style={s.tableCell}>{row.stiffness}</Text>
+            <Text style={s.tableCell}>{row.expected}</Text>
           </View>
-          <TouchableOpacity style={s.roundBtn} onPress={() => changeAngle(angle + 5)}>
-            <Text style={s.btnText}>+</Text>
-          </TouchableOpacity>
-        </View>
+        ))}
       </View>
       <TouchableOpacity style={s.btn} onPress={onNext}>
-        <Text style={s.btnText}>{t('handFan.saveAngle')}</Text>
+        <Text style={s.btnText}>Start Iteration</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-function MatrixInputScreen({ matrix, onChange, onNext }: { matrix: MatrixData; onChange: (matrix: MatrixData) => void; onNext: () => void }) {
-  const { t } = useTranslation();
-  const designs = [t('data.triangleFold'), t('data.accordion'), t('data.simpleWave'), t('data.doubleLayer')];
-  const distances = ['15cm', '30cm', '45cm'];
-  const best = getBestMatrixResult(matrix);
+function AngleArch({ angle }: { angle: number }) {
+  const width = 300;
+  const height = 190;
+  const cx = 150;
+  const cy = 158;
+  const radius = 116;
+  const safeAngle = Math.max(0, Math.min(180, Math.round(angle)));
+  const rad = (safeAngle * Math.PI) / 180;
+  const handLength = radius - 10;
+  const handX = cx + handLength * Math.cos(rad);
+  const handY = cy - handLength * Math.sin(rad);
+  const ticks = [0, 30, 60, 90, 120, 150, 180];
 
-  const updateCell = (design: string, distance: string, value: string) => {
-    onChange({
-      ...matrix,
-      [design]: {
-        ...(matrix[design] ?? {}),
-        [distance]: value.replace(/[^0-9.,]/g, ''),
-      },
+  return (
+    <View style={s.archWrap}>
+      <Svg height={height} viewBox={`0 0 ${width} ${height}`} width="100%">
+        <Path d={`M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`} fill="none" stroke={stemmColors.text} strokeWidth={3} />
+        <Line stroke={stemmColors.border} strokeWidth={3} x1={cx - radius} x2={cx + radius} y1={cy} y2={cy} />
+        {ticks.map((tick) => {
+          const tickRad = (tick * Math.PI) / 180;
+          const outerX = cx + radius * Math.cos(tickRad);
+          const outerY = cy - radius * Math.sin(tickRad);
+          const innerX = cx + (radius - 12) * Math.cos(tickRad);
+          const innerY = cy - (radius - 12) * Math.sin(tickRad);
+          const labelX = cx + (radius - 30) * Math.cos(tickRad);
+          const labelY = cy - (radius - 30) * Math.sin(tickRad);
+          return (
+            <React.Fragment key={tick}>
+              <Line stroke={stemmColors.muted} strokeWidth={2} x1={outerX} x2={innerX} y1={outerY} y2={innerY} />
+              <SvgText fill={stemmColors.muted} fontSize={11} fontWeight="700" textAnchor="middle" x={labelX} y={labelY + 4}>
+                {tick}
+              </SvgText>
+            </React.Fragment>
+          );
+        })}
+        <Line stroke="#F5674D" strokeLinecap="round" strokeWidth={8} x1={cx} x2={handX} y1={cy} y2={handY} />
+        <Circle cx={cx} cy={cy} fill="#F5674D" r={8} />
+      </Svg>
+      <Text style={s.archAngle}>{safeAngle} degrees</Text>
+    </View>
+  );
+}
+
+function VideoIterationScreen({ attempt, onSave }: { attempt: number; onSave: (iteration: FanIteration) => void }) {
+  const [name, setName] = useState('');
+  const [videoUri, setVideoUri] = useState('');
+  const [frameUri, setFrameUri] = useState('');
+  const [bendAngle, setBendAngle] = useState('45');
+  const player = useVideoPlayer(null);
+  const parsedAngle = Number(bendAngle.replace(',', '.'));
+  const angleValue = Number.isFinite(parsedAngle) ? Math.max(0, Math.min(180, parsedAngle)) : 0;
+
+  useEffect(() => {
+    if (!videoUri) {
+      player.replace(null);
+      return;
+    }
+    void player.replaceAsync({ uri: videoUri });
+  }, [player, videoUri]);
+
+  const pickVideo = async () => {
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) return;
+    const result = await ImagePicker.launchImageLibraryAsync({ allowsEditing: false, mediaTypes: ['videos'], quality: 1 });
+    if (!result.canceled) {
+      setVideoUri(result.assets[0]?.uri ?? '');
+      setFrameUri('');
+    }
+  };
+
+  const captureFrame = () => {
+    if (videoUri) setFrameUri(videoUri);
+  };
+
+  const changeAngle = (delta: number) => {
+    setBendAngle(String(Math.max(0, Math.min(180, Math.round(angleValue + delta)))));
+  };
+
+  const save = () => {
+    onSave({
+      id: `${Date.now()}-${attempt}`,
+      name: name.trim() || `Iteration ${attempt}`,
+      videoUri,
+      frameUri,
+      bendAngle: Number.isFinite(parsedAngle) ? angleValue : null,
     });
+    setName('');
+    setVideoUri('');
+    setFrameUri('');
+    setBendAngle('45');
   };
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>{t('handFan.matrixInput')}</Text>
-      <Text style={[s.body, { marginBottom: 16 }]}>{t('handFan.matrixSub')}</Text>
-      <View style={[s.tableRow, s.tableHead]}>
-        <Text style={[s.tableCell, s.tableHeadText, { flex: 2 }]}>{t('handFan.fanDesign')}</Text>
-        {distances.map((distance) => <Text key={distance} style={[s.tableCell, s.tableHeadText]}>{distance}</Text>)}
+      <Text style={s.heading}>Fan Iteration {attempt}</Text>
+      <Text style={[s.body, { marginBottom: 14 }]}>Upload a fan test video, capture a frame, then measure the bend angle from that frame.</Text>
+      <View style={s.inputGroup}>
+        <Text style={s.label}>Iteration name</Text>
+        <TextInput onChangeText={setName} placeholder={`Iteration ${attempt}`} style={s.input} value={name} />
       </View>
-      {designs.map((design) => (
-        <View key={design} style={s.tableRow}>
-          <Text style={[s.tableCell, { flex: 2 }]}>{design}</Text>
-          {distances.map((distance) => (
-            <TextInput
-              key={`${design}-${distance}`}
-              keyboardType="decimal-pad"
-              onChangeText={(value) => updateCell(design, distance, value)}
-              placeholder="0°"
-              style={s.tableInput}
-              value={matrix[design]?.[distance] ?? ''}
-            />
-          ))}
-        </View>
-      ))}
-      <View style={s.section}>
-        <Text style={s.cardTitle}>
-          {t('handFan.bestPerformer')}: {best ? `${best.design} (${best.distance}, ${best.angle}°)` : t('handFan.noMatrixData')}
-        </Text>
-      </View>
-      <TouchableOpacity style={s.btn} onPress={onNext}>
-        <Text style={s.btnText}>{t('handFan.viewMaterials')}</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
-function StiffnessRefScreen({ onNext }: { onNext: () => void }) {
-  const { t } = useTranslation();
-  const materials = [t('data.cardboard'), t('data.bondPaper'), t('data.tissuePaper'), t('data.craftPaper'), t('data.magazinePage')];
-
-  return (
-    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>{t('handFan.stiffness')}</Text>
-      <Text style={[s.body, { marginBottom: 16 }]}>{t('handFan.stiffnessSub')}</Text>
-      {materials.map((material, index) => (
-        <View key={material} style={s.card}>
-          <Text style={s.cardTitle}>{material}</Text>
-          <Text style={s.body}>K: {(0.3 + index * 0.55).toFixed(1)}</Text>
-        </View>
-      ))}
-      <TouchableOpacity style={s.btn} onPress={onNext}>
-        <Text style={s.btnText}>{t('handFan.takePhoto')}</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
-function PhotoProofScreen({ angle, onAngleChange, onNext }: { angle: number; onAngleChange: (angle: number) => void; onNext: () => void }) {
-  const { t } = useTranslation();
-  const cameraRef = useRef<CameraView | null>(null);
-  const [permission, requestPermission] = useCameraPermissions();
-  const [photos, setPhotos] = useState<string[]>([]);
-  const changeAngle = (nextAngle: number) => onAngleChange(Math.min(180, Math.max(0, nextAngle)));
-
-  const capturePhoto = async () => {
-    const photo = await cameraRef.current?.takePictureAsync({ quality: 0.75 });
-    if (photo?.uri) setPhotos((previous) => [photo.uri, ...previous].slice(0, 4));
-  };
-
-  if (!permission) {
-    return (
-      <View style={[s.pad, s.center]}>
-        <Text style={s.body}>{t('handFan.cameraLoading')}</Text>
-      </View>
-    );
-  }
-
-  if (!permission.granted) {
-    return (
-      <View style={[s.pad, s.center]}>
-        <Text style={[s.heading, { textAlign: 'center' }]}>{t('handFan.cameraPermission')}</Text>
-        <TouchableOpacity style={s.btn} onPress={requestPermission}>
-          <Text style={s.btnText}>{t('handFan.allowCamera')}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={s.outlineBtn} onPress={onNext}>
-          <Text style={s.outlineBtnText}>{t('common.next')}</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
-
-  return (
-    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>{t('handFan.photoProof')}</Text>
-      <Text style={[s.body, { marginBottom: 16 }]}>{t('handFan.photoSub')}</Text>
-      <View style={s.cameraView}>
-        <CameraView ref={cameraRef} facing="back" style={s.cameraPreview} />
-        <View pointerEvents="none" style={s.cameraOverlay}>
-          <AngleGuide angle={angle} compact />
-        </View>
-      </View>
-      <View style={s.sliderRow}>
-        <TouchableOpacity style={s.roundBtn} onPress={() => changeAngle(angle - 5)}>
-          <Text style={s.btnText}>-</Text>
-        </TouchableOpacity>
-        <View style={s.sliderTrack}>
-          <View style={[s.sliderFill, { width: `${(angle / 180) * 100}%` }]} />
-        </View>
-        <TouchableOpacity style={s.roundBtn} onPress={() => changeAngle(angle + 5)}>
-          <Text style={s.btnText}>+</Text>
-        </TouchableOpacity>
-      </View>
-      <Text style={s.photoAngleLabel}>{angle}°</Text>
-      {photos.length > 0 && (
-        <View style={s.photoStrip}>
-          {photos.map((uri) => (
-            <Image key={uri} source={{ uri }} style={s.photoThumb} />
-          ))}
+      {videoUri ? (
+        <VideoView contentFit="contain" nativeControls player={player as never} style={s.videoPlayer} />
+      ) : (
+        <View style={s.videoUploadCard}>
+          <Text style={s.uploadTitle}>Upload test video</Text>
+          <Text style={s.body}>Choose a video of the fan bending during airflow.</Text>
         </View>
       )}
-      <TouchableOpacity style={s.btn} onPress={capturePhoto}>
-        <Text style={s.btnText}>{t('handFan.capturePhoto')}</Text>
+      <TouchableOpacity style={s.outlineBtn} onPress={pickVideo}>
+        <Text style={s.outlineBtnText}>{videoUri ? 'Replace Video' : 'Choose Video'}</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={s.outlineBtn} onPress={onNext}>
-        <Text style={s.outlineBtnText}>{t('common.next')}</Text>
+      <TouchableOpacity disabled={!videoUri} style={[s.btn, !videoUri && s.disabled]} onPress={captureFrame}>
+        <Text style={s.btnText}>Screenshot Current Frame</Text>
+      </TouchableOpacity>
+      {frameUri ? (
+        <View style={s.frameBox}>
+          <Text style={s.frameLabel}>Frame screenshot reference</Text>
+          <View style={s.frameStill}>
+            <Text style={s.frameStillText}>Captured frame</Text>
+            <AngleArch angle={angleValue} />
+          </View>
+          <View style={s.angleControls}>
+            <TouchableOpacity style={s.angleButton} onPress={() => changeAngle(-5)}>
+              <Text style={s.angleButtonText}>-</Text>
+            </TouchableOpacity>
+            <View style={s.angleTrack}>
+              <View style={[s.angleFill, { width: `${(angleValue / 180) * 100}%` }]} />
+            </View>
+            <TouchableOpacity style={s.angleButton} onPress={() => changeAngle(5)}>
+              <Text style={s.angleButtonText}>+</Text>
+            </TouchableOpacity>
+          </View>
+          <Text style={s.frameHelp}>Adjust the arch hand until it matches the fan bend in the video above.</Text>
+        </View>
+      ) : null}
+      <View style={s.inputGroup}>
+        <Text style={s.label}>Bend angle from screenshot</Text>
+        <TextInput keyboardType="decimal-pad" onChangeText={(value) => setBendAngle(value.replace(/[^0-9.,]/g, ''))} placeholder="45" style={s.input} value={bendAngle} />
+      </View>
+      <TouchableOpacity disabled={!videoUri || !frameUri} style={[s.btn, (!videoUri || !frameUri) && s.disabled]} onPress={save}>
+        <Text style={s.btnText}>Save Iteration</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-function LeaderboardScreen({ matrix, onNext }: { matrix: MatrixData; onNext: () => void }) {
-  const { t } = useTranslation();
+function IterationLogScreen({ iterations, onCreateNew, onFinish }: { iterations: FanIteration[]; onCreateNew: () => void; onFinish: () => void }) {
+  return (
+    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
+      <Text style={s.heading}>Iteration Log</Text>
+      {iterations.length === 0 ? (
+        <View style={s.section}><Text style={s.body}>No fan iterations recorded yet.</Text></View>
+      ) : iterations.map((iteration) => (
+        <View key={iteration.id} style={s.card}>
+          <Text style={s.cardTitle}>{iteration.name}</Text>
+          <Text style={s.body}>Bend angle: {iteration.bendAngle ?? '-'} degrees</Text>
+          <Text style={s.body}>Video: {iteration.videoUri ? 'attached' : '-'}</Text>
+          <Text style={s.body}>Screenshot frame: {iteration.frameUri ? 'captured' : '-'}</Text>
+        </View>
+      ))}
+      <TouchableOpacity style={s.btn} onPress={onCreateNew}>
+        <Text style={s.btnText}>Create Another Iteration</Text>
+      </TouchableOpacity>
+      {iterations.length > 0 && (
+        <TouchableOpacity style={s.outlineBtn} onPress={onFinish}>
+          <Text style={s.outlineBtnText}>Finish and Compare</Text>
+        </TouchableOpacity>
+      )}
+    </ScrollView>
+  );
+}
+
+function LeaderboardScreen({ iterations, onNext }: { iterations: FanIteration[]; onNext: () => void }) {
   const { team } = useTeam();
-  const best = getBestMatrixResult(matrix);
-  const values = getMatrixNumbers(matrix);
+  const values = iterations.map((iteration) => iteration.bendAngle).filter((value): value is number => typeof value === 'number');
+  const best = [...iterations].filter((iteration) => typeof iteration.bendAngle === 'number').sort((a, b) => (b.bendAngle ?? 0) - (a.bendAngle ?? 0))[0];
   const average = values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '-';
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>{t('common.leaderboard')}</Text>
-      <Text style={[s.body, { marginBottom: 16 }]}>{t('handFan.topPerformers')}</Text>
-      {team ? (
-        <View style={[s.lbRow, s.lbFirst]}>
-          <Text style={s.rank}>1.</Text>
-          <View style={s.flex}>
-            <Text style={s.cardTitle}>{team.teamName}</Text>
-            <Text style={s.body}>{values.length} {t('data.attempts')} | {average}° {t('data.average')}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={s.body}>{t('data.bendAngle')}</Text>
-            <Text style={s.score}>{best ? `${best.angle}°` : '-'}</Text>
-          </View>
+      <Text style={s.heading}>Fan Results</Text>
+      <View style={[s.lbRow, s.lbFirst]}>
+        <Text style={s.rank}>1.</Text>
+        <View style={s.flex}>
+          <Text style={s.cardTitle}>{team?.teamName ?? 'Local team'}</Text>
+          <Text style={s.body}>{iterations.length} attempts | {average} degrees average</Text>
         </View>
-      ) : (
-        <View style={s.section}>
-          <Text style={s.body}>{t('handFan.noLeaderboardData')}</Text>
+        <Text style={s.score}>{best ? `${best.bendAngle} degrees` : '-'}</Text>
+      </View>
+      {iterations.map((iteration) => (
+        <View key={iteration.id} style={s.card}>
+          <Text style={s.cardTitle}>{iteration.name}</Text>
+          <Text style={s.body}>Measured bend angle: {iteration.bendAngle ?? '-'} degrees</Text>
         </View>
-      )}
+      ))}
       <TouchableOpacity style={s.btn} onPress={onNext}>
-        <Text style={s.btnText}>{t('common.writeUp')}</Text>
+        <Text style={s.btnText}>Write Up</Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
-function WriteUpScreen({ onBack }: { onBack: () => void }) {
+function WriteUpScreen({ iterations, onBack }: { iterations: FanIteration[]; onBack: () => void }) {
   const { t } = useTranslation();
   const { team } = useTeam();
-  const fields = translatedArray(t('handFan.writeUpFields', { returnObjects: true }));
+  const baseFields = translatedArray(t('handFan.writeUpFields', { returnObjects: true }));
+  const iterationFields = iterations.map((iteration) => `Explain the performance of ${iteration.name} using its measured bend angle.`);
 
   return (
     <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('common.writeUp')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('handFan.writeSub')}</Text>
-      <SpeechButton text={fields} style={s.speech} />
-      <ReflectionForm activityId="handFan" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
+      <SpeechButton text={[...baseFields, ...iterationFields]} style={s.speech} />
+      <ReflectionForm activityId="handFan" teamId={team?.id ?? 'local'} questions={[...baseFields, ...iterationFields]} onSaved={onBack} />
     </ScrollView>
   );
 }
@@ -337,21 +311,24 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
 export function HandFanActivity({ onBack }: Props) {
   const { t } = useTranslation();
   const [step, setStep] = useState(1);
-  const [guideAngle, setGuideAngle] = useState(45);
-  const [matrix, setMatrix] = useState<MatrixData>({});
-  const total = 7;
+  const [iterations, setIterations] = useState<FanIteration[]>([]);
+  const total = 6;
+
+  const saveIteration = (iteration: FanIteration) => {
+    setIterations((previous) => [iteration, ...previous]);
+    setStep(4);
+  };
 
   return (
     <View style={s.root}>
       <ActivityHeader title={t('handFan.title')} step={step} total={total} color="#9C27B0" onBack={step === 1 ? onBack : () => setStep(step - 1)} />
       <View style={s.flex}>
         {step === 1 && <SetupGuideScreen onNext={() => setStep(2)} />}
-        {step === 2 && <AngleToolScreen angle={guideAngle} onAngleChange={setGuideAngle} onNext={() => setStep(3)} />}
-        {step === 3 && <MatrixInputScreen matrix={matrix} onChange={setMatrix} onNext={() => setStep(4)} />}
-        {step === 4 && <StiffnessRefScreen onNext={() => setStep(5)} />}
-        {step === 5 && <PhotoProofScreen angle={guideAngle} onAngleChange={setGuideAngle} onNext={() => setStep(6)} />}
-        {step === 6 && <LeaderboardScreen matrix={matrix} onNext={() => setStep(7)} />}
-        {step === 7 && <WriteUpScreen onBack={onBack} />}
+        {step === 2 && <StiffnessMatrixScreen onNext={() => setStep(3)} />}
+        {step === 3 && <VideoIterationScreen attempt={iterations.length + 1} onSave={saveIteration} />}
+        {step === 4 && <IterationLogScreen iterations={iterations} onCreateNew={() => setStep(3)} onFinish={() => setStep(5)} />}
+        {step === 5 && <LeaderboardScreen iterations={iterations} onNext={() => setStep(6)} />}
+        {step === 6 && <WriteUpScreen iterations={iterations} onBack={onBack} />}
       </View>
     </View>
   );
@@ -362,43 +339,44 @@ const s = StyleSheet.create({
   flex: { flex: 1 },
   pad: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
   scrollContent: { paddingBottom: 32 },
-  heading: { fontSize: 26, fontWeight: '800', color: stemmColors.blue, marginBottom: 10 },
+  heading: { color: stemmColors.blue, fontSize: 26, fontWeight: '800', marginBottom: 10 },
   speech: { marginBottom: 16 },
   body: { color: stemmColors.text, fontSize: 16, lineHeight: 24 },
-  section: { backgroundColor: stemmColors.surface, borderRadius: 14, borderWidth: 1, borderColor: stemmColors.border, marginBottom: 14, padding: 16 },
+  section: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, marginBottom: 14, padding: 16 },
   sectionTitle: { color: stemmColors.blue, fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  btn: { backgroundColor: stemmColors.blue, borderRadius: 14, alignItems: 'center', justifyContent: 'center', minHeight: 52, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 8 },
-  btnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
-  outlineBtn: { borderColor: stemmColors.blue, borderRadius: 14, borderWidth: 2, alignItems: 'center', justifyContent: 'center', minHeight: 52, paddingVertical: 14, paddingHorizontal: 18, marginBottom: 8 },
-  outlineBtnText: { color: stemmColors.blue, fontSize: 17, fontWeight: '800' },
-  center: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  angleGuide: { alignItems: 'center', marginBottom: 18, width: '100%' },
-  angleGuideCompact: { alignItems: 'center', width: '100%' },
-  angle: { color: '#9C27B0', fontSize: 44, fontWeight: '900', marginTop: -8 },
-  angleOverlayText: { backgroundColor: 'rgba(255,255,255,0.88)', borderRadius: 12, color: '#9C27B0', fontSize: 24, fontWeight: '900', marginTop: -24, overflow: 'hidden', paddingHorizontal: 12, paddingVertical: 4 },
-  sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 10, width: '100%' },
-  roundBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: stemmColors.blue, alignItems: 'center', justifyContent: 'center' },
-  sliderTrack: { flex: 1, height: 10, backgroundColor: '#e5e7eb', borderRadius: 5, overflow: 'hidden' },
-  sliderFill: { height: 10, backgroundColor: '#9C27B0' },
-  tableRow: { flexDirection: 'row', borderWidth: 1, borderColor: '#e5e7eb', paddingVertical: 12, paddingHorizontal: 8 },
+  btn: { alignItems: 'center', backgroundColor: stemmColors.blue, borderRadius: 14, justifyContent: 'center', marginBottom: 8, minHeight: 52, paddingHorizontal: 18, paddingVertical: 14 },
+  btnText: { color: '#fff', fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  outlineBtn: { alignItems: 'center', borderColor: stemmColors.blue, borderRadius: 14, borderWidth: 2, justifyContent: 'center', marginBottom: 8, minHeight: 52, paddingHorizontal: 18, paddingVertical: 14 },
+  outlineBtnText: { color: stemmColors.blue, fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  disabled: { opacity: 0.45 },
+  diagramImage: { backgroundColor: '#fff', borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, height: 250, marginBottom: 16, width: '100%' },
+  table: { borderColor: stemmColors.border, borderRadius: 12, borderWidth: 1, marginBottom: 16, overflow: 'hidden' },
+  tableRow: { borderBottomWidth: 1, borderColor: stemmColors.border, flexDirection: 'row', paddingHorizontal: 8, paddingVertical: 12 },
   tableHead: { backgroundColor: stemmColors.blue },
   tableHeadText: { color: '#fff', fontWeight: '800' },
-  tableCell: { flex: 1, color: stemmColors.text, fontSize: 14, textAlign: 'center' },
-  tableInput: { borderColor: stemmColors.border, borderRadius: 10, borderWidth: 1, color: stemmColors.text, flex: 1, fontSize: 14, marginHorizontal: 3, minHeight: 42, paddingHorizontal: 6, textAlign: 'center' },
-  card: { borderWidth: 1, borderColor: stemmColors.border, borderRadius: 14, padding: 16, marginBottom: 10 },
-  cardTitle: { color: stemmColors.text, fontSize: 16, fontWeight: '800' },
-  cameraView: { backgroundColor: '#111827', borderRadius: 16, height: 330, justifyContent: 'center', marginBottom: 12, overflow: 'hidden' },
-  cameraPreview: { ...StyleSheet.absoluteFillObject },
-  cameraOverlay: { ...StyleSheet.absoluteFillObject, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 14 },
-  cameraText: { color: '#fff', fontSize: 44, fontWeight: '900' },
-  photoAngleLabel: { color: '#9C27B0', fontSize: 20, fontWeight: '900', marginBottom: 10, marginTop: 6, textAlign: 'center' },
-  photoStrip: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  photoThumb: { backgroundColor: '#e5e7eb', borderRadius: 10, height: 74, width: 74 },
-  lbRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: stemmColors.border, borderRadius: 14, padding: 14, marginBottom: 8 },
-  lbFirst: { backgroundColor: stemmColors.greenSoft, borderColor: stemmColors.green, borderWidth: 2 },
-  rank: { color: stemmColors.blue, fontSize: 20, fontWeight: '900', width: 36 },
-  score: { color: '#9C27B0', fontSize: 20, fontWeight: '900' },
+  tableCell: { color: stemmColors.text, flex: 1, fontSize: 14, textAlign: 'center' },
   inputGroup: { marginBottom: 14 },
   label: { color: stemmColors.blue, fontSize: 16, fontWeight: '800', marginBottom: 8 },
-  textarea: { borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 14, paddingTop: 10, backgroundColor: '#f9fafb', color: stemmColors.text, fontSize: 16, minHeight: 80 },
+  input: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, color: stemmColors.text, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12 },
+  videoPlayer: { aspectRatio: 16 / 9, backgroundColor: '#102031', borderRadius: 14, marginBottom: 14, overflow: 'hidden', width: '100%' },
+  videoUploadCard: { alignItems: 'center', aspectRatio: 16 / 9, backgroundColor: '#EAF4F8', borderColor: stemmColors.blue, borderRadius: 14, borderStyle: 'dashed', borderWidth: 2, justifyContent: 'center', marginBottom: 14, padding: 18 },
+  uploadTitle: { color: stemmColors.blue, fontSize: 18, fontWeight: '900', marginBottom: 8, textAlign: 'center' },
+  frameBox: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, marginBottom: 14, padding: 12 },
+  frameLabel: { color: stemmColors.blue, fontSize: 15, fontWeight: '800', marginBottom: 8 },
+  frameStill: { alignItems: 'center', backgroundColor: '#F2E7DF', borderColor: stemmColors.border, borderRadius: 12, borderWidth: 1, marginBottom: 12, minHeight: 230, overflow: 'hidden', padding: 12 },
+  frameStillText: { alignSelf: 'flex-start', color: stemmColors.muted, fontSize: 13, fontWeight: '800', marginBottom: 4, textTransform: 'uppercase' },
+  archWrap: { alignItems: 'center', width: '100%' },
+  archAngle: { color: '#F5674D', fontSize: 22, fontWeight: '900', marginTop: -8 },
+  angleControls: { alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 8 },
+  angleButton: { alignItems: 'center', backgroundColor: '#343133', borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
+  angleButtonText: { color: '#fff', fontSize: 24, fontWeight: '900', lineHeight: 28 },
+  angleTrack: { backgroundColor: '#D9D0C8', borderRadius: 999, flex: 1, height: 10, overflow: 'hidden' },
+  angleFill: { backgroundColor: '#F5674D', borderRadius: 999, height: '100%' },
+  frameHelp: { color: stemmColors.muted, fontSize: 13, fontWeight: '700', lineHeight: 18 },
+  card: { borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, marginBottom: 10, padding: 16 },
+  cardTitle: { color: stemmColors.text, fontSize: 16, fontWeight: '800' },
+  lbRow: { alignItems: 'center', borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', gap: 8, marginBottom: 8, padding: 14 },
+  lbFirst: { backgroundColor: stemmColors.greenSoft, borderColor: stemmColors.green, borderWidth: 2 },
+  rank: { color: stemmColors.blue, fontSize: 20, fontWeight: '900', width: 36 },
+  score: { color: '#9C27B0', fontSize: 18, fontWeight: '900' },
 });

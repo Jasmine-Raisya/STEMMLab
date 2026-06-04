@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 
 import { insertActivityReflection } from '../services/localDb';
+import { syncPendingLocalData } from '../services/syncService';
 import { ActivityId } from '../types/models';
 
 export function useActivityReflection(activityId: ActivityId, teamId: string, questions: string[]) {
@@ -24,6 +25,11 @@ export function useActivityReflection(activityId: ActivityId, teamId: string, qu
       answers,
       timestamp: Date.now(),
     });
+    try {
+      await syncPendingLocalData();
+    } catch (error) {
+      console.warn('Reflection saved locally, but Firestore sync failed.', error);
+    }
   };
 
   return useMemo(() => ({ rating, setRating, answers, updateAnswer, isValid, save }), [answers, isValid, rating]);

@@ -1,351 +1,315 @@
-import React, { useEffect, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
 import { ActivityHeader, BulletList, stemmColors } from '../../components/ActivityScaffold';
-import { SpeechButton } from '../../components/SpeechButton';
-import { SensorLineChart } from '../../components/SensorLineChart';
 import { BatteryWarning } from '../../components/BatteryWarning';
-import { useGyroscopeStream } from '../../hooks/useGyroscopeStream';
 import { ReflectionForm } from '../../components/ReflectionForm';
+import { SensorLineChart } from '../../components/SensorLineChart';
+import { SpeechButton } from '../../components/SpeechButton';
+import { useGyroscopeStream } from '../../hooks/useGyroscopeStream';
 import { useTeam } from '../../services/teamContext';
+import { SensorSample } from '../../types/models';
+import { useThemeColors } from '../../ThemeContext';
 
-interface Props { onBack: () => void; }
+interface Props {
+  onBack: () => void;
+}
+
+type Phase = 'overview' | 'guide' | 'prep' | 'measure' | 'summary' | 'writeup';
+
+interface MovementResult {
+  key: string;
+  name: string;
+  average: number;
+  max: number;
+  score: number;
+}
+
+const movements = [
+  {
+    key: 'movement1',
+    name: 'Movement 1',
+    instruction: 'Follow the first posture shown. Move smoothly and keep the phone secured.',
+    image: require('../../../assets/exp5.1.jpg'),
+  },
+  {
+    key: 'movement2',
+    name: 'Movement 2',
+    instruction: 'Follow the second posture shown. Keep the motion controlled for the full timer.',
+    image: require('../../../assets/exp5.2.jpg'),
+  },
+  {
+    key: 'movement3',
+    name: 'Movement 3',
+    instruction: 'Follow the third posture shown. Avoid sudden jerks unless the movement requires it.',
+    image: require('../../../assets/exp5.3.jpg'),
+  },
+];
+
+const overviewImage = require('../../../assets/exp5.jpg');
 
 function translatedArray(value: unknown) {
   return Array.isArray(value) ? value.map(String) : [];
 }
 
-function MovementMenuScreen({ onNext }: { onNext: () => void }) {
-  const { t } = useTranslation();
-  const equipment = translatedArray(t('humanPerformance.equipment', { returnObjects: true }));
-  const instructions = translatedArray(t('humanPerformance.instructions', { returnObjects: true }));
-  const movements = [
-    { key: 'slowReach', color: stemmColors.green },
-    { key: 'touchToes', color: stemmColors.orange },
-    { key: 'sideStretch', color: '#1D76B8' },
-  ];
-
-  return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('humanPerformance.movementMenu')}</Text>
-      <Text style={styles.body}>{t('humanPerformance.selectMovement')}</Text>
-      <SpeechButton
-        text={[t('humanPerformance.overview'), ...instructions, t('humanPerformance.tip')]}
-        style={styles.speech}
-      />
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('humanPerformance.overviewTitle')}</Text>
-        <Text style={styles.body}>{t('humanPerformance.overview')}</Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('humanPerformance.equipmentTitle')}</Text>
-        <BulletList items={equipment} />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('humanPerformance.instructionsTitle')}</Text>
-        <BulletList items={instructions} />
-      </View>
-
-      {movements.map((movement) => (
-        <TouchableOpacity key={movement.key} style={[styles.movCard, { borderColor: movement.color }]} activeOpacity={0.8}>
-          <View style={[styles.movIcon, { backgroundColor: `${movement.color}22` }]}>
-            <Text style={[styles.movInitial, { color: movement.color }]}>
-              {t(`humanPerformance.movements.${movement.key}.name`).slice(0, 2)}
-            </Text>
-          </View>
-          <View style={styles.flex}>
-            <Text style={styles.cardTitle}>{t(`humanPerformance.movements.${movement.key}.name`)}</Text>
-            <Text style={styles.muted}>{t(`humanPerformance.movements.${movement.key}.description`)}</Text>
-          </View>
-          <Text style={[styles.badge, { backgroundColor: movement.color }]}>
-            {t(`humanPerformance.movements.${movement.key}.difficulty`)}
-          </Text>
-        </TouchableOpacity>
-      ))}
-
-      <View style={styles.tipBox}>
-        <Text style={styles.sectionTitle}>{t('humanPerformance.tipTitle')}</Text>
-        <Text style={styles.body}>{t('humanPerformance.tip')}</Text>
-      </View>
-
-      <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
-        <Text style={styles.primaryButtonText}>{t('humanPerformance.beginAnalysis')}</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
+function scoreSamples(samples: SensorSample[]) {
+  if (samples.length === 0) return { average: 0, max: 0, score: 0 };
+  const values = samples.map((sample) => sample.value);
+  const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+  const max = Math.max(...values);
+  const score = Math.max(0, Math.min(100, Math.round(100 - average * 25)));
+  return { average, max, score };
 }
 
-function SmoothnessTrackerScreen({ onNext }: { onNext: () => void }) {
-  const { t } = useTranslation();
-  const [smoothness, setSmoothness] = useState(0);
-  const [tracking, setTracking] = useState(false);
-  const movement = t('humanPerformance.movements.slowReach.name');
-  const stream = useGyroscopeStream('humanPerformance', tracking);
-
-  useEffect(() => {
-    if (!tracking || stream.samples.length === 0) {
-      if (!tracking) setSmoothness(0);
-      return;
-    }
-    const latest = stream.samples.at(-1)?.value ?? 0;
-    setSmoothness(Math.max(0, Math.min(100, 100 - latest * 30)));
-  }, [stream.samples, tracking]);
-
-  const color = smoothness < 40 ? '#C53A2C' : smoothness < 70 ? stemmColors.orange : stemmColors.green;
-  const status = smoothness < 40 ? t('humanPerformance.jerky') : smoothness < 70 ? t('humanPerformance.moderate') : t('humanPerformance.smooth');
-
-  return (
-    <View style={[styles.pad, styles.flex]}>
-      <Text style={styles.heading}>{t('humanPerformance.smoothnessTracker')}</Text>
-      <Text style={[styles.body, { marginBottom: 14 }]}>{t('humanPerformance.performing', { movement })}</Text>
-      <SpeechButton text={t('humanPerformance.instructions', { returnObjects: true }) as string[]} style={styles.speech} />
-      <View style={styles.centerStage}>
-        <View style={styles.vertBarBg}>
-          <View style={[styles.vertBarFill, { backgroundColor: color, height: `${smoothness}%` as `${number}%` }]} />
-        </View>
-        <Text style={[styles.percent, { color }]}>{Math.round(smoothness)}%</Text>
-        <Text style={styles.status}>{status}</Text>
-        <TouchableOpacity
-          style={[styles.primaryButton, { backgroundColor: tracking ? '#C53A2C' : stemmColors.green, paddingHorizontal: 32 }]}
-          onPress={() => setTracking(!tracking)}
-        >
-          <Text style={styles.primaryButtonText}>{tracking ? t('humanPerformance.stopTracking') : t('humanPerformance.startMovement')}</Text>
-        </TouchableOpacity>
-      </View>
-      <TouchableOpacity style={styles.outlineButton} onPress={onNext}>
-        <Text style={styles.outlineButtonText}>{t('humanPerformance.viewSensorData')}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function LiveSensorFeedScreen({ onNext }: { onNext: () => void }) {
-  const { t } = useTranslation();
-  const stream = useGyroscopeStream('humanPerformance', true);
-
-  return (
-    <View style={[styles.pad, styles.flex]}>
-      <Text style={styles.heading}>{t('humanPerformance.sensorFeed')}</Text>
-      <Text style={[styles.body, { marginBottom: 16 }]}>{t('humanPerformance.sensorInstruction')}</Text>
-      <SpeechButton text={t('humanPerformance.sensorInstruction')} style={styles.speech} />
-      <BatteryWarning />
-      <SensorLineChart samples={stream.samples} label={t('data.amplitude')} color="#6EE7B7" />
-      <View style={styles.section}>
-        <View style={styles.rowBetween}>
-          <Text style={styles.cardTitle}>{t('humanPerformance.movementQuality')}</Text>
-          <Text style={[styles.cardTitle, { color: stemmColors.green }]}>{t('humanPerformance.excellent')}</Text>
-        </View>
-        <View style={styles.barBg}>
-          <View style={styles.barFill} />
-        </View>
-      </View>
-      <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
-        <Text style={styles.primaryButtonText}>{t('humanPerformance.calculateScore')}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function PerformanceSummaryScreen({ onNext }: { onNext: () => void }) {
-  const { t } = useTranslation();
-  const score = 87;
-  const circumference = 2 * Math.PI * 85;
-  const dashArray = `${(score / 100) * circumference} ${circumference}`;
-  const stats = [
-    { label: t('humanPerformance.steadiness'), value: '92/100' },
-    { label: t('humanPerformance.rangeOfMotion'), value: '82/100' },
-    { label: t('humanPerformance.consistency'), value: '87/100' },
-  ];
-
-  return (
-    <View style={[styles.pad, styles.flex]}>
-      <Text style={styles.heading}>{t('humanPerformance.performanceSummary')}</Text>
-      <View style={styles.centerStage}>
-        <View style={styles.scoreWrap}>
-          <Svg width={220} height={220} viewBox="0 0 200 200" style={styles.scoreSvg as never}>
-            <Circle cx="100" cy="100" r="85" fill="none" stroke="#DDE8EE" strokeWidth="18" />
-            <Circle cx="100" cy="100" r="85" fill="none" stroke={stemmColors.green} strokeWidth="18" strokeLinecap="round" strokeDasharray={dashArray} />
-          </Svg>
-          <View style={styles.scoreCopy}>
-            <Text style={styles.scoreNumber}>{score}</Text>
-            <Text style={styles.muted}>{t('humanPerformance.outOf100')}</Text>
-          </View>
-        </View>
-        {stats.map((stat) => (
-          <View key={stat.label} style={styles.statRow}>
-            <Text style={styles.cardTitle}>{stat.label}</Text>
-            <Text style={styles.statValue}>{stat.value}</Text>
-          </View>
-        ))}
-      </View>
-      <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
-        <Text style={styles.primaryButtonText}>{t('humanPerformance.compareTeam')}</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function TeamComparisonScreen({ onNext }: { onNext: () => void }) {
-  const { t } = useTranslation();
-  const { team } = useTeam();
-  const members = (team?.members ?? []).map((name, index) => ({ name, score: 80 - index * 3 }));
-
-  return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('humanPerformance.teamComparison')}</Text>
-      <Text style={[styles.body, { marginBottom: 16 }]}>{t('humanPerformance.sideBySide')}</Text>
-      {members.length === 0 && <Text style={styles.body}>Register team members to compare results.</Text>}
-      <View style={styles.barChart}>
-        {members.map((member) => (
-          <View key={member.name} style={styles.chartColumn}>
-            <View style={[styles.chartBar, { height: member.score * 1.45 }]} />
-            <Text style={styles.statValue}>{member.score}</Text>
-            <Text style={styles.muted}>{member.name}</Text>
-          </View>
-        ))}
-      </View>
-      {members.map((member) => (
-        <View key={member.name} style={styles.memberCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{member.name.split(' ').map((name) => name[0]).join('')}</Text>
-          </View>
-          <View style={styles.flex}>
-            <Text style={styles.cardTitle}>{member.name}</Text>
-            <Text style={styles.muted}>{t('humanPerformance.movements.slowReach.name')}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={styles.statValue}>{member.score}</Text>
-            <Text style={styles.muted}>{t('data.score')}</Text>
-          </View>
-        </View>
-      ))}
-      <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
-        <Text style={styles.primaryButtonText}>{t('common.writeSummary')}</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
-function LeaderboardScreen({ onNext }: { onNext: () => void }) {
-  const { t } = useTranslation();
-  const { team } = useTeam();
-  const data = team?.members ?? [];
-
-  return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('humanPerformance.leaderboard')}</Text>
-      <Text style={[styles.body, { marginBottom: 16 }]}>{t('humanPerformance.topPerformers')}</Text>
-      {data.length === 0 && <Text style={styles.body}>No synced leaderboard entries yet.</Text>}
-      {data.map((name, index) => (
-        <View key={name} style={[styles.memberCard, index === 0 && styles.lbFirst]}>
-          <Text style={styles.rank}>{index + 1}</Text>
-          <View style={styles.flex}>
-            <Text style={styles.cardTitle}>{name}</Text>
-            <Text style={styles.muted}>{t('humanPerformance.movements.slowReach.name')}</Text>
-          </View>
-          <Text style={styles.statValue}>{87 - index * 5}</Text>
-        </View>
-      ))}
-      <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
-        <Text style={styles.primaryButtonText}>{t('common.writeSummary')}</Text>
-      </TouchableOpacity>
-    </ScrollView>
-  );
-}
-
-function WriteUpScreen({ onBack }: { onBack: () => void }) {
-  const { t } = useTranslation();
-  const { team } = useTeam();
-  const fields = translatedArray(t('humanPerformance.writeUpFields', { returnObjects: true }));
-
-  return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('humanPerformance.writeUp')}</Text>
-      <Text style={[styles.body, { marginBottom: 14 }]}>{t('humanPerformance.documentFindings')}</Text>
-      <SpeechButton text={fields} style={styles.speech} />
-      <ReflectionForm activityId="humanPerformance" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
-    </ScrollView>
-  );
+function resultReflectionFields(results: MovementResult[]) {
+  if (results.length === 0) return ['Which movement felt hardest to control, and why?'];
+  return results.map((result) => (
+    `For ${result.name}, explain what the vibration score (${result.score}/100), average vibration (${result.average.toFixed(2)}), and max vibration (${result.max.toFixed(2)}) show about movement control.`
+  ));
 }
 
 export function HumanPerformanceActivity({ onBack }: Props) {
   const { t } = useTranslation();
-  const [step, setStep] = useState(1);
-  const total = 7;
+  const colors = useThemeColors();
+  const { team } = useTeam();
+  const [phase, setPhase] = useState<Phase>('overview');
+  const [movementIndex, setMovementIndex] = useState(0);
+  const [prepLeft, setPrepLeft] = useState(5);
+  const [measureLeft, setMeasureLeft] = useState(30);
+  const [results, setResults] = useState<MovementResult[]>([]);
+  const activeMovement = movements[movementIndex];
+  const stream = useGyroscopeStream('humanPerformance', phase === 'measure');
+  const samplesRef = useRef<SensorSample[]>([]);
+  const fields = translatedArray(t('humanPerformance.writeUpFields', { returnObjects: true }));
+  const leaderboard = useMemo(() => [...results].sort((a, b) => b.score - a.score), [results]);
+  const total = movements.length * 3 + 2;
+  const step = phase === 'overview'
+    ? 1
+    : phase === 'summary'
+      ? total - 1
+      : phase === 'writeup'
+        ? total
+        : Math.min(total - 2, movementIndex * 3 + (phase === 'guide' ? 2 : phase === 'prep' ? 3 : 4));
+
+  useEffect(() => {
+    samplesRef.current = stream.samples;
+  }, [stream.samples]);
+
+  useEffect(() => {
+    if (phase !== 'prep') return undefined;
+    const timer = setInterval(() => {
+      setPrepLeft((previous) => {
+        if (previous <= 1) {
+          clearInterval(timer);
+          samplesRef.current = [];
+          setMeasureLeft(30);
+          setPhase('measure');
+          return 0;
+        }
+        return previous - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase !== 'measure') return undefined;
+    const timer = setInterval(() => {
+      setMeasureLeft((previous) => {
+        if (previous <= 1) {
+          clearInterval(timer);
+          finishMeasurement();
+          return 0;
+        }
+        return previous - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [phase, movementIndex]);
+
+  const startMovement = () => {
+    setPrepLeft(5);
+    setPhase('prep');
+  };
+
+  const finishMeasurement = () => {
+    const summary = scoreSamples(samplesRef.current);
+    const completed = {
+      key: activeMovement.key,
+      name: activeMovement.name,
+      ...summary,
+    };
+    setResults((previous) => [...previous.filter((item) => item.key !== completed.key), completed]);
+    if (movementIndex < movements.length - 1) {
+      setMovementIndex((index) => index + 1);
+      setPrepLeft(5);
+      setMeasureLeft(30);
+      setPhase('guide');
+    } else {
+      setPhase('summary');
+    }
+  };
+
+  const skipMovement = () => {
+    samplesRef.current = [];
+    setPrepLeft(5);
+    setMeasureLeft(30);
+    if (movementIndex < movements.length - 1) {
+      setMovementIndex((index) => index + 1);
+      setPhase('guide');
+    } else {
+      setPhase('summary');
+    }
+  };
+
+  const goBack = () => {
+    if (phase === 'overview') return onBack();
+    if (phase === 'summary') {
+      setMovementIndex(movements.length - 1);
+      setPhase('guide');
+      return;
+    }
+    if (phase === 'writeup') {
+      setPhase('summary');
+      return;
+    }
+    setPhase(movementIndex === 0 ? 'overview' : 'guide');
+  };
+
+  const instructions = [
+    'Secure the phone before each movement.',
+    'Study the movement image first.',
+    'Use the 5-second break to get ready.',
+    'Move for the full 30 seconds while vibration is measured.',
+  ];
 
   return (
-    <View style={styles.root}>
-      <ActivityHeader
-        title={t('humanPerformance.title')}
-        step={step}
-        total={total}
-        color={stemmColors.green}
-        onBack={step === 1 ? onBack : () => setStep(step - 1)}
-      />
-      <View style={styles.flex}>
-        {step === 1 && <MovementMenuScreen onNext={() => setStep(2)} />}
-        {step === 2 && <SmoothnessTrackerScreen onNext={() => setStep(3)} />}
-        {step === 3 && <LiveSensorFeedScreen onNext={() => setStep(4)} />}
-        {step === 4 && <PerformanceSummaryScreen onNext={() => setStep(5)} />}
-        {step === 5 && <TeamComparisonScreen onNext={() => setStep(6)} />}
-        {step === 6 && <LeaderboardScreen onNext={() => setStep(7)} />}
-        {step === 7 && <WriteUpScreen onBack={onBack} />}
-      </View>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
+      <ActivityHeader title={t('humanPerformance.title')} step={step} total={total} color={stemmColors.green} onBack={goBack} />
+
+      {phase === 'overview' && (
+        <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+          <Text style={[styles.heading, { color: colors.heading }]}>{t('humanPerformance.movementMenu')}</Text>
+          <Text style={[styles.body, { color: colors.text }]}>{t('humanPerformance.overview')}</Text>
+          <SpeechButton text={[t('humanPerformance.overview'), ...instructions]} style={styles.speech} />
+          <Image source={overviewImage} style={[styles.overviewImage, { borderColor: colors.border, backgroundColor: colors.surface }]} resizeMode="contain" />
+          <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.heading }]}>{t('humanPerformance.instructionsTitle')}</Text>
+            <BulletList items={instructions} />
+          </View>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setPhase('guide')}>
+            <Text style={styles.primaryButtonText}>Start Movement 1</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {phase === 'guide' && (
+        <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+          <Text style={[styles.heading, { color: colors.heading }]}>{activeMovement.name}</Text>
+          <Text style={[styles.body, { color: colors.text, marginBottom: 14 }]}>{activeMovement.instruction}</Text>
+          <Image source={activeMovement.image} style={[styles.movementImage, { borderColor: colors.border }]} resizeMode="contain" />
+          <TouchableOpacity style={styles.primaryButton} onPress={startMovement}>
+            <Text style={styles.primaryButtonText}>Start 5 Second Break</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {phase === 'prep' && (
+        <View style={[styles.fullTimer, { backgroundColor: colors.background }]}>
+          <Text style={[styles.heading, { color: colors.heading }]}>{activeMovement.name}</Text>
+          <Text style={[styles.body, { color: colors.text }]}>Get ready</Text>
+          <Text style={[styles.countdown, { color: colors.cta }]}>{prepLeft}</Text>
+          <Text style={[styles.body, { color: colors.muted }]}>measurement starts after the break</Text>
+          <TouchableOpacity style={[styles.skipButton, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={skipMovement}>
+            <Text style={[styles.skipButtonText, { color: colors.heading }]}>Skip Movement</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {phase === 'measure' && (
+        <View style={[styles.pad, styles.flex, { backgroundColor: colors.background }]}>
+          <Text style={[styles.heading, { color: colors.heading }]}>{activeMovement.name}</Text>
+          <Text style={[styles.body, { color: colors.text }]}>Move now. Vibration is being measured.</Text>
+          <View style={styles.center}>
+            <Text style={[styles.countdown, { color: colors.cta }]}>{measureLeft}</Text>
+            <Text style={[styles.body, { color: colors.muted }]}>seconds</Text>
+          </View>
+          <BatteryWarning />
+          <SensorLineChart samples={stream.samples} label="Movement vibration" color={stemmColors.green} />
+          <TouchableOpacity style={[styles.skipButton, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={skipMovement}>
+            <Text style={[styles.skipButtonText, { color: colors.heading }]}>Skip Movement</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      {phase === 'summary' && (
+        <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+          <Text style={[styles.heading, { color: colors.heading }]}>{t('humanPerformance.performanceSummary')}</Text>
+          {leaderboard.map((result, index) => (
+            <View key={result.key} style={[styles.resultCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.rank, { color: colors.heading }]}>#{index + 1}</Text>
+              <View style={styles.flex}>
+                <Text style={[styles.cardTitle, { color: colors.text }]}>{result.name}</Text>
+                <Text style={[styles.muted, { color: colors.muted }]}>Avg {result.average.toFixed(2)} | Max {result.max.toFixed(2)}</Text>
+              </View>
+              <Text style={styles.statValue}>{result.score}</Text>
+            </View>
+          ))}
+          {results.length === 0 && (
+            <View style={[styles.resultCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{t('parachute.noIterations')}</Text>
+            </View>
+          )}
+          <TouchableOpacity style={styles.primaryButton} onPress={() => setPhase('writeup')}>
+            <Text style={styles.primaryButtonText}>{t('common.writeSummary')}</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      )}
+
+      {phase === 'writeup' && (
+        <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+          <Text style={[styles.heading, { color: colors.heading }]}>{t('humanPerformance.writeUp')}</Text>
+          <Text style={[styles.body, { color: colors.text, marginBottom: 14 }]}>{t('humanPerformance.documentFindings')}</Text>
+          <SpeechButton text={[...fields, ...resultReflectionFields(results)]} style={styles.speech} />
+          <ReflectionForm activityId="humanPerformance" teamId={team?.id ?? 'local'} questions={[...fields, ...resultReflectionFields(results)]} onSaved={onBack} />
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { backgroundColor: stemmColors.white, flex: 1 },
+  root: { flex: 1 },
   flex: { flex: 1 },
   pad: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
   scrollContent: { paddingBottom: 32 },
-  heading: { color: stemmColors.blue, fontSize: 26, fontWeight: '800', marginBottom: 10 },
+  heading: { fontSize: 26, fontWeight: '800', marginBottom: 10 },
+  body: { fontSize: 16, lineHeight: 24 },
   speech: { marginBottom: 16, marginTop: 12 },
-  body: { color: stemmColors.text, fontSize: 16, lineHeight: 24 },
-  muted: { color: stemmColors.muted, fontSize: 14 },
-  section: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, marginBottom: 14, padding: 16 },
-  sectionTitle: { color: stemmColors.blue, fontSize: 18, fontWeight: '800', marginBottom: 8 },
-  tipBox: { backgroundColor: stemmColors.greenSoft, borderColor: '#A9D8C7', borderRadius: 14, borderWidth: 1, marginBottom: 16, padding: 16 },
-  primaryButton: { alignItems: 'center', backgroundColor: stemmColors.blue, borderRadius: 14, marginBottom: 8, minHeight: 52, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14 },
+  section: { borderRadius: 14, borderWidth: 1, marginBottom: 14, padding: 16 },
+  sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 8 },
+  primaryButton: {
+    alignItems: 'center',
+    backgroundColor: stemmColors.blue,
+    borderRadius: 14,
+    justifyContent: 'center',
+    marginBottom: 8,
+    minHeight: 52,
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+  },
   primaryButtonText: { color: stemmColors.white, fontSize: 17, fontWeight: '800', textAlign: 'center' },
-  outlineButton: { alignItems: 'center', borderColor: stemmColors.blue, borderRadius: 14, borderWidth: 2, marginBottom: 8, minHeight: 52, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14 },
-  outlineButtonText: { color: stemmColors.blue, fontSize: 17, fontWeight: '800', textAlign: 'center' },
-  movCard: { alignItems: 'center', backgroundColor: stemmColors.white, borderRadius: 14, borderWidth: 2, flexDirection: 'row', gap: 14, marginBottom: 12, padding: 16 },
-  movIcon: { alignItems: 'center', borderRadius: 18, height: 58, justifyContent: 'center', width: 58 },
-  movInitial: { fontSize: 17, fontWeight: '900' },
-  cardTitle: { color: stemmColors.text, fontSize: 16, fontWeight: '800' },
-  badge: { borderRadius: 12, color: stemmColors.white, fontSize: 12, fontWeight: '800', overflow: 'hidden', paddingHorizontal: 8, paddingVertical: 4 },
-  centerStage: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-  vertBarBg: { backgroundColor: '#DDE8EE', borderRadius: 40, height: 220, justifyContent: 'flex-end', overflow: 'hidden', width: 80 },
-  vertBarFill: { borderRadius: 40, width: '100%' },
-  percent: { fontSize: 42, fontWeight: '900', marginTop: 16 },
-  status: { color: stemmColors.text, fontSize: 18, fontWeight: '800', marginBottom: 20 },
-  chartPanel: { backgroundColor: '#102031', borderRadius: 14, marginBottom: 14, padding: 14 },
-  chartLabel: { color: 'rgba(255,255,255,0.62)', fontSize: 14, marginBottom: 8 },
-  rowBetween: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
-  barBg: { backgroundColor: '#DDE8EE', borderRadius: 4, height: 8, overflow: 'hidden' },
-  barFill: { backgroundColor: stemmColors.green, borderRadius: 4, height: 8, width: '82%' },
-  scoreWrap: { alignItems: 'center', height: 220, justifyContent: 'center', marginBottom: 24, position: 'relative', width: 220 },
-  scoreSvg: { transform: [{ rotate: '-90deg' }] },
-  scoreCopy: { alignItems: 'center', position: 'absolute' },
-  scoreNumber: { color: stemmColors.green, fontSize: 54, fontWeight: '900' },
-  statRow: { backgroundColor: stemmColors.surface, borderRadius: 14, flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10, padding: 14, width: '100%' },
-  statValue: { color: stemmColors.green, fontSize: 20, fontWeight: '900' },
-  barChart: { alignItems: 'flex-end', borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', gap: 16, height: 190, marginBottom: 16, padding: 16 },
-  chartColumn: { alignItems: 'center', flex: 1, justifyContent: 'flex-end' },
-  chartBar: { backgroundColor: stemmColors.green, borderTopLeftRadius: 8, borderTopRightRadius: 8, width: '70%' },
-  memberCard: { alignItems: 'center', borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 10, padding: 14 },
-  avatar: { alignItems: 'center', backgroundColor: stemmColors.blue, borderRadius: 22, height: 44, justifyContent: 'center', width: 44 },
-  avatarText: { color: stemmColors.white, fontWeight: '800' },
-  lbFirst: { backgroundColor: stemmColors.greenSoft, borderColor: stemmColors.green, borderWidth: 2 },
-  rank: { color: stemmColors.blue, fontSize: 22, fontWeight: '900', width: 32 },
-  inputGroup: { marginBottom: 14 },
-  label: { color: stemmColors.blue, fontSize: 16, fontWeight: '800', marginBottom: 8 },
-  textarea: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, color: stemmColors.text, fontSize: 16, minHeight: 86, paddingHorizontal: 14, paddingTop: 12 },
+  overviewImage: { borderRadius: 14, borderWidth: 1, height: 260, marginBottom: 16, marginTop: 14, width: '100%' },
+  movementImage: { borderRadius: 14, borderWidth: 1, height: 360, marginBottom: 16, width: '100%' },
+  fullTimer: { alignItems: 'center', flex: 1, justifyContent: 'center', padding: 20 },
+  center: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  countdown: { fontSize: 86, fontWeight: '900', marginVertical: 18 },
+  skipButton: { alignItems: 'center', borderRadius: 14, borderWidth: 1, justifyContent: 'center', marginTop: 16, minHeight: 48, paddingHorizontal: 18, paddingVertical: 12 },
+  skipButtonText: { fontSize: 16, fontWeight: '800', textAlign: 'center' },
+  resultCard: { alignItems: 'center', borderRadius: 14, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 10, padding: 14 },
+  rank: { fontSize: 22, fontWeight: '900', width: 42 },
+  cardTitle: { fontSize: 16, fontWeight: '800' },
+  muted: { fontSize: 14 },
+  statValue: { color: stemmColors.green, fontSize: 24, fontWeight: '900' },
 });

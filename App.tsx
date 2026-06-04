@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, StatusBar, StyleSheet, useColorScheme, View } from 'react-native';
+import { ActivityIndicator, StatusBar, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/ThemeContext';
+import { useTheme } from './src/ThemeContext';
 import './src/services/i18n';
 import { LanguageProvider } from './src/services/LanguageContext';
 import { TeamProvider, useTeam } from './src/services/teamContext';
@@ -91,7 +92,8 @@ export default function App() {
 
 function AppNavigator() {
   const [currentScreen, setCurrentScreen] = useState<RouteId | null>(null);
-  const isDark = useColorScheme() === 'dark';
+  const { theme, colors } = useTheme();
+  const isDark = theme === 'dark';
   const { team, isLoadingTeam } = useTeam();
   useFirebaseAuth();
 
@@ -106,10 +108,10 @@ function AppNavigator() {
 
   if (isLoadingTeam || currentScreen === null) {
     return (
-      <SafeAreaView style={styles.safeArea}>
-        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
-        <View style={styles.loading}>
-          <ActivityIndicator color="#0074D9" size="large" />
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
+        <View style={{ alignItems: 'center', flex: 1, justifyContent: 'center' }}>
+          <ActivityIndicator color={colors.cta} size="large" />
         </View>
       </SafeAreaView>
     );
@@ -118,8 +120,8 @@ function AppNavigator() {
   const activeScreen = !team && protectedRoutes.has(currentScreen) ? ROUTES.register : currentScreen;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+      <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={colors.background} />
 
         {activeScreen === ROUTES.splash && <SplashScreen onNext={() => navigate(ROUTES.register)} />}
         {activeScreen === ROUTES.register && <TeamSetupScreen onRegistered={() => navigate(ROUTES.teamCode)} onSignedIn={() => navigate(ROUTES.dashboard)} />}
@@ -139,8 +141,3 @@ function AppNavigator() {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#fff' },
-  loading: { alignItems: 'center', flex: 1, justifyContent: 'center' },
-});

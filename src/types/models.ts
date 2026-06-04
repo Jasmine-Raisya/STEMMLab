@@ -57,3 +57,22 @@ export interface LeaderboardEntry {
   score: number;
   timestamp: number;
 }
+
+export interface ExperimentRecord {
+  id: string;
+  teamId: string;
+  activityId: string;
+  score: number;
+  timestamp: number;
+  details: Record<string, unknown>;
+  // optional fields
+  authUid?: string;
+  representativeEmail?: string;
+  teamName?: string;
+}
+
+export interface SyncStatus {
+  lastSyncedAt: number;
+  pendingChanges: number;
+  isOnline: boolean;
+}

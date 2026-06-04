@@ -25,6 +25,17 @@ function createTeamId(teamName: string) {
   return `${prefix}-${Date.now()}`;
 }
 
+export function formatTeamDisplayId(team: Pick<TeamProfile, 'id' | 'teamName' | 'createdAt'> | null | undefined) {
+  if (!team) return '-';
+  const name = team.teamName.trim() || 'Team';
+  const existingDisplayId = team.id.match(/#(\d{4})$/);
+  if (existingDisplayId) return `${name} #${existingDisplayId[1]}`;
+
+  const seed = `${team.id}-${name}-${team.createdAt}`;
+  const hash = seed.split('').reduce((total, char) => ((total * 31) + char.charCodeAt(0)) % 10000, 0);
+  return `${name} #${hash.toString().padStart(4, '0')}`;
+}
+
 export function TeamProvider({ children }: { children: ReactNode }) {
   const [team, setTeam] = useState<TeamProfile | null>(null);
   const [isLoadingTeam, setIsLoadingTeam] = useState(true);

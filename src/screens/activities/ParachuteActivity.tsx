@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { LayoutChangeEvent, PanResponder, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Image, LayoutChangeEvent, PanResponder, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 import { VideoView, useVideoPlayer } from 'expo-video';
@@ -13,6 +13,7 @@ interface Props { onBack: () => void; }
 
 interface Iteration {
   attempt: number;
+  name: string;
   time: number;
   height: number;
   velocity: number;
@@ -21,9 +22,13 @@ interface Iteration {
 }
 
 interface MeasurementInput {
+  iterationName: string;
   dropHeight: string;
   measuredTime: string;
 }
+
+const instructionImage = require('../../../assets/exp1.jpg');
+const requiredIterations = ['Toy without parachute', 'Toy with parachute', 'Toy with modified parachute'];
 
 function translatedArray(value: unknown) {
   return Array.isArray(value) ? value.map(String) : [];
@@ -44,6 +49,7 @@ function buildIteration(measurement: MeasurementInput, attempt: number): Iterati
 
   return {
     attempt,
+    name: measurement.iterationName.trim() || `Iteration ${attempt}`,
     height: Number(height.toFixed(2)),
     time: Number(time.toFixed(2)),
     velocity: Number(velocity.toFixed(2)),
@@ -66,6 +72,7 @@ function OverviewScreen({ onNext, iterations }: { onNext: () => void; iterations
     <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
       <Text style={styles.heading}>{t('parachute.overview')}</Text>
       <SpeechButton text={ttsText} style={styles.speech} />
+      <Image source={instructionImage} resizeMode="contain" style={styles.diagramImage} />
 
       {iterations.length > 0 && (
         <View style={styles.notice}>
@@ -87,6 +94,12 @@ function OverviewScreen({ onNext, iterations }: { onNext: () => void; iterations
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>{t('parachute.instructionsTitle')}</Text>
         <BulletList items={instructions} />
+      </View>
+
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Required iterations</Text>
+        <Text style={[styles.body, { marginBottom: 10 }]}>Repeat the drop 3 times so the comparison is fair:</Text>
+        <BulletList items={requiredIterations} />
       </View>
 
       <View style={styles.scienceBox}>
@@ -122,6 +135,18 @@ function TimerScreen({
       <View style={styles.centerStage}>
         <Text style={styles.body}>{t('parachute.timerInstruction')}</Text>
         <Text style={[styles.body, styles.measurementHint]}>{t('parachute.measurementHint')}</Text>
+        <Text style={[styles.body, styles.measurementHint]}>
+          Step 1: measure the drop height. Step 2: drop the toy without throwing it and record the time until it first hits the ground.
+        </Text>
+        <View style={[styles.inputGroup, { width: '100%', marginTop: 18 }]}>
+          <Text style={styles.label}>Iteration name</Text>
+          <TextInput
+            onChangeText={(iterationName) => onChange({ ...measurement, iterationName })}
+            placeholder={`Iteration ${measurement.iterationName || ''}`.trim()}
+            style={styles.input}
+            value={measurement.iterationName}
+          />
+        </View>
         <View style={styles.buttonRow}>
           <View style={[styles.inputGroup, styles.flex]}>
             <Text style={styles.label}>{t('parachute.dropHeight')}</Text>
@@ -161,11 +186,16 @@ function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
   const [positionMillis, setPositionMillis] = useState(0);
   const [impactMillis, setImpactMillis] = useState<number | null>(null);
   const [trackWidth, setTrackWidth] = useState(1);
+  const [playbackRate, setPlaybackRate] = useState(1);
   const progress = durationMillis > 0 ? Math.min(100, Math.max(0, (positionMillis / durationMillis) * 100)) : 0;
   const impactProgress = impactMillis !== null && durationMillis > 0 ? Math.min(100, Math.max(0, (impactMillis / durationMillis) * 100)) : null;
   const player = useVideoPlayer(null, (videoPlayer) => {
     videoPlayer.timeUpdateEventInterval = 0.1;
   });
+
+  useEffect(() => {
+    (player as unknown as { playbackRate?: number }).playbackRate = playbackRate;
+  }, [playbackRate, player]);
 
   useEffect(() => {
     const timeUpdate = player.addListener('timeUpdate', ({ currentTime }) => {
@@ -250,13 +280,23 @@ function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
             style={styles.videoPlayer}
           />
         ) : (
-          <TouchableOpacity accessibilityRole="button" onPress={pickVideo} style={styles.videoUploadCard}>
+          <View style={styles.videoUploadCard}>
             <Text style={styles.uploadIcon}>+</Text>
             <Text style={styles.uploadTitle}>{t('parachute.uploadVideo')}</Text>
             <Text style={styles.uploadSub}>{t('parachute.uploadVideoSub')}</Text>
-          </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" onPress={pickVideo} style={[styles.primaryButton, { marginTop: 14, width: '100%' }]}>
+              <Text style={styles.primaryButtonText}>{t('parachute.chooseVideo')}</Text>
+            </TouchableOpacity>
+          </View>
         )}
         <Text style={[styles.body, { marginBottom: 14 }]}>{t('parachute.videoInstruction')}</Text>
+        <View style={styles.speedRow}>
+          {[0.25, 0.5, 1].map((rate) => (
+            <TouchableOpacity key={rate} style={[styles.speedButton, playbackRate === rate && styles.speedButtonActive]} onPress={() => setPlaybackRate(rate)}>
+              <Text style={[styles.speedText, playbackRate === rate && styles.speedTextActive]}>{rate}x</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
         <View style={styles.timelineLabels}>
           <Text style={styles.muted}>{formatTime(positionMillis)}</Text>
           <Text style={styles.muted}>{impactMillis === null ? t('parachute.noImpactMarked') : t('parachute.impactAt', { time: formatTime(impactMillis) })}</Text>
@@ -277,7 +317,7 @@ function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
         </TouchableOpacity>
       </View>
       <TouchableOpacity style={styles.outlineButton} onPress={onNext}>
-        <Text style={styles.outlineButtonText}>{t('parachute.calculateResults')}</Text>
+        <Text style={styles.outlineButtonText}>{t('common.nextStep')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -287,6 +327,7 @@ function PhysicsCalculatorScreen({ iteration, onNext }: { iteration: Iteration |
   const { t } = useTranslation();
   const results = [
     { label: t('data.time'), value: iteration ? `${iteration.time}s` : '-' },
+    { label: t('parachute.dropHeight'), value: iteration ? `${iteration.height}m` : '-' },
     { label: t('data.velocity'), value: iteration ? `${iteration.velocity} m/s` : '-' },
     { label: t('data.acceleration'), value: iteration ? `${iteration.acceleration} m/s2` : '-' },
     { label: t('data.gForce'), value: iteration ? `${iteration.gForce} G` : '-' },
@@ -329,7 +370,7 @@ function IterationLogScreen({ iterations, onCreateNew, onFinish }: {
       ) : (
         iterations.map((iteration) => (
           <View key={iteration.attempt} style={styles.iterCard}>
-            <Text style={styles.sectionTitle}>{t('parachute.attempt', { attempt: iteration.attempt })}</Text>
+            <Text style={styles.sectionTitle}>{iteration.name}</Text>
             <Text style={styles.body}>
               {t('parachute.dropHeight')}: {iteration.height}m | {t('data.time')}: {iteration.time}s | {t('data.velocity')}: {iteration.velocity} m/s | {t('data.acceleration')}: {iteration.acceleration} m/s2 | {t('data.gForce')}: {iteration.gForce}G
             </Text>
@@ -371,6 +412,12 @@ function LeaderboardScreen({ iterations, onNext }: { iterations: Iteration[]; on
           {index === 0 && <Text style={styles.teamBadge}>{t('parachute.yourTeam')}</Text>}
         </View>
       ))}
+      <View style={styles.section}>
+        <Text style={styles.sectionTitle}>Iteration comparison</Text>
+        {iterations.map((iteration) => (
+          <Text key={iteration.attempt} style={styles.body}>{iteration.name}: {iteration.time}s, {iteration.velocity} m/s</Text>
+        ))}
+      </View>
       <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
         <Text style={styles.primaryButtonText}>{t('common.writeSummary')}</Text>
       </TouchableOpacity>
@@ -407,7 +454,7 @@ export function ParachuteActivity({ onBack }: Props) {
   const [step, setStep] = useState(1);
   const [iterations, setIterations] = useState<Iteration[]>([]);
   const [currentIter, setCurrentIter] = useState(1);
-  const [measurement, setMeasurement] = useState<MeasurementInput>({ dropHeight: '', measuredTime: '' });
+  const [measurement, setMeasurement] = useState<MeasurementInput>({ iterationName: '', dropHeight: '', measuredTime: '' });
   const total = 7;
   const currentResult = buildIteration(measurement, currentIter);
 
@@ -415,7 +462,7 @@ export function ParachuteActivity({ onBack }: Props) {
     if (!currentResult) return;
     setIterations((previous) => [...previous, currentResult]);
     setCurrentIter((previous) => previous + 1);
-    setMeasurement({ dropHeight: measurement.dropHeight, measuredTime: '' });
+    setMeasurement({ iterationName: '', dropHeight: measurement.dropHeight, measuredTime: '' });
     setStep(1);
   };
 
@@ -430,8 +477,8 @@ export function ParachuteActivity({ onBack }: Props) {
       />
       <View style={styles.flex}>
         {step === 1 && <OverviewScreen onNext={() => setStep(2)} iterations={iterations} />}
-        {step === 2 && <TimerScreen measurement={measurement} onChange={setMeasurement} onNext={() => setStep(3)} />}
-        {step === 3 && <VideoAnalysisScreen onNext={() => setStep(4)} />}
+        {step === 2 && <VideoAnalysisScreen onNext={() => setStep(3)} />}
+        {step === 3 && <TimerScreen measurement={measurement} onChange={setMeasurement} onNext={() => setStep(4)} />}
         {step === 4 && <PhysicsCalculatorScreen iteration={currentResult} onNext={() => setStep(5)} />}
         {step === 5 && <IterationLogScreen iterations={iterations} onCreateNew={handleCreateIteration} onFinish={() => setStep(6)} />}
         {step === 6 && <LeaderboardScreen iterations={iterations} onNext={() => setStep(7)} />}
@@ -468,12 +515,18 @@ const styles = StyleSheet.create({
   errorText: { color: '#B84A20', fontSize: 14, fontWeight: '700', marginTop: 6, textAlign: 'center' },
   input: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, color: stemmColors.text, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12 },
   measurementHint: { marginTop: 8, textAlign: 'center' },
+  diagramImage: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, height: 230, marginBottom: 16, width: '100%' },
   videoPlayer: { aspectRatio: 16 / 9, backgroundColor: '#102031', borderRadius: 14, marginBottom: 14, overflow: 'hidden', width: '100%' },
   videoUploadCard: { alignItems: 'center', aspectRatio: 16 / 9, backgroundColor: '#EAF4F8', borderColor: stemmColors.blue, borderRadius: 14, borderStyle: 'dashed', borderWidth: 2, justifyContent: 'center', marginBottom: 14, padding: 18 },
   uploadIcon: { color: stemmColors.blue, fontSize: 42, fontWeight: '900', lineHeight: 44 },
   uploadTitle: { color: stemmColors.blue, fontSize: 18, fontWeight: '900', marginTop: 6, textAlign: 'center' },
   uploadSub: { color: stemmColors.muted, fontSize: 14, lineHeight: 20, marginTop: 4, textAlign: 'center' },
   timelineLabels: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  speedRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  speedButton: { borderColor: stemmColors.border, borderRadius: 12, borderWidth: 1, flex: 1, paddingVertical: 10 },
+  speedButtonActive: { backgroundColor: stemmColors.orange, borderColor: stemmColors.orange },
+  speedText: { color: stemmColors.text, fontSize: 14, fontWeight: '900', textAlign: 'center' },
+  speedTextActive: { color: '#fff' },
   trackBg: { backgroundColor: '#DDE8EE', borderRadius: 10, height: 18, justifyContent: 'center', marginBottom: 4, overflow: 'visible' },
   disabledTrack: { opacity: 0.45 },
   trackFill: { backgroundColor: stemmColors.orange, borderRadius: 10, height: 18 },

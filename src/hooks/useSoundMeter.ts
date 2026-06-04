@@ -12,6 +12,8 @@ interface SoundMeterState {
   decibel: number;
   recording: boolean;
   permissionGranted: boolean;
+  meteringAvailable: boolean;
+  error: string | null;
   start: () => Promise<void>;
   stop: () => Promise<void>;
   battery: ReturnType<typeof useBatteryGuard>;
@@ -19,7 +21,9 @@ interface SoundMeterState {
 
 function meteringToDecibels(metering?: number) {
   if (typeof metering !== 'number') return 0;
-  return Math.max(0, Math.min(120, Math.round(120 + metering)));
+  if (metering <= -120) return 30;
+  const normalized = Math.max(0, Math.min(1, (metering + 60) / 60));
+  return Math.max(30, Math.min(110, Math.round(30 + normalized * 80)));
 }
 
 export function useSoundMeter(): SoundMeterState {
@@ -27,6 +31,7 @@ export function useSoundMeter(): SoundMeterState {
   const [decibel, setDecibel] = useState(0);
   const [recording, setRecording] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const battery = useBatteryGuard();
   const recorder = useAudioRecorder({ ...RecordingPresets.HIGH_QUALITY, isMeteringEnabled: true });
   const recorderState = useAudioRecorderState(recorder, battery.shouldThrottle ? 1000 : 500);
@@ -34,27 +39,40 @@ export function useSoundMeter(): SoundMeterState {
   const lastSampleAtRef = useRef(0);
 
   const start = useCallback(async () => {
-    const permission = await requestRecordingPermissionsAsync();
-    setPermissionGranted(permission.granted);
-    if (!permission.granted) return;
+    try {
+      setError(null);
+      const permission = await requestRecordingPermissionsAsync();
+      setPermissionGranted(permission.granted);
+      if (!permission.granted) {
+        setError('Microphone permission was not granted.');
+        return;
+      }
 
-    await setAudioModeAsync({
-      allowsRecording: true,
-      interruptionMode: 'mixWithOthers',
-      playsInSilentMode: true,
-      shouldPlayInBackground: false,
-      shouldRouteThroughEarpiece: false,
-    });
-    coordinatesRef.current = await getCurrentCoordinates();
-    await recorder.prepareToRecordAsync();
-    recorder.record();
-    setRecording(true);
+      await setAudioModeAsync({
+        allowsRecording: true,
+        interruptionMode: 'mixWithOthers',
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        shouldRouteThroughEarpiece: false,
+      });
+      coordinatesRef.current = await getCurrentCoordinates();
+      await recorder.prepareToRecordAsync();
+      recorder.record();
+      setRecording(true);
+    } catch (startError) {
+      setRecording(false);
+      setError(startError instanceof Error ? startError.message : 'Unable to start the microphone.');
+    }
   }, [recorder]);
 
   const stop = useCallback(async () => {
     setRecording(false);
-    if (recorder.isRecording) {
-      await recorder.stop();
+    try {
+      if (recorder.isRecording) {
+        await recorder.stop();
+      }
+    } catch (stopError) {
+      setError(stopError instanceof Error ? stopError.message : 'Unable to stop the microphone.');
     }
     await setAudioModeAsync({
       allowsRecording: false,
@@ -62,7 +80,7 @@ export function useSoundMeter(): SoundMeterState {
       playsInSilentMode: true,
       shouldPlayInBackground: false,
       shouldRouteThroughEarpiece: false,
-    });
+    }).catch(() => undefined);
   }, [recorder]);
 
   useEffect(() => {
@@ -94,7 +112,17 @@ export function useSoundMeter(): SoundMeterState {
   }, [stop]);
 
   return useMemo(
-    () => ({ samples, decibel, recording, permissionGranted, start, stop, battery }),
-    [battery, decibel, permissionGranted, recording, samples],
+    () => ({
+      samples,
+      decibel,
+      recording,
+      permissionGranted,
+      meteringAvailable: typeof recorderState.metering === 'number',
+      error,
+      start,
+      stop,
+      battery,
+    }),
+    [battery, decibel, error, permissionGranted, recorderState.metering, recording, samples, start, stop],
   );
 }

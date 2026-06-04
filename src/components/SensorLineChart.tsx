@@ -5,6 +5,7 @@ import Svg, { Line, Polyline } from 'react-native-svg';
 import { stemmColors } from './ActivityScaffold';
 import { SensorSample } from '../types/models';
 import { useResponsiveMetrics } from '../hooks/useResponsiveMetrics';
+import { useThemeColors } from '../ThemeContext';
 
 interface Props {
   samples: SensorSample[];
@@ -14,6 +15,7 @@ interface Props {
 
 export function SensorLineChart({ samples, label, color = stemmColors.green }: Props) {
   const metrics = useResponsiveMetrics();
+  const colors = useThemeColors();
   const height = metrics.chartHeight;
   const width = Math.max(280, metrics.width - metrics.pagePadding * 2 - 32);
   const values = samples.map((sample) => sample.value);
@@ -27,9 +29,9 @@ export function SensorLineChart({ samples, label, color = stemmColors.green }: P
     .join(' ');
 
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
       <View style={styles.header}>
-        <Text style={styles.label}>{label}</Text>
+        <Text style={[styles.label, { color: colors.heading }]}>{label}</Text>
         <Text style={styles.value}>{values.at(-1)?.toFixed(2) ?? '0.00'}</Text>
       </View>
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
@@ -41,8 +43,8 @@ export function SensorLineChart({ samples, label, color = stemmColors.green }: P
 }
 
 const styles = StyleSheet.create({
-  card: { backgroundColor: '#fff', borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, padding: 14 },
+  card: { borderRadius: 14, borderWidth: 1, padding: 14 },
   header: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  label: { color: stemmColors.blue, fontSize: 16, fontWeight: '800' },
+  label: { fontSize: 16, fontWeight: '800' },
   value: { color: stemmColors.green, fontSize: 18, fontWeight: '900' },
 });
