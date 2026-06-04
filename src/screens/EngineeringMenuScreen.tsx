@@ -21,7 +21,7 @@ export function EngineeringMenuScreen({ onBack, onSelectActivity }: Props) {
     <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <Text style={styles.backIcon}>‹</Text>
+          <Text style={styles.backIcon}>{'<'}</Text>
         </TouchableOpacity>
         <View>
           <Text style={styles.title}>{t('common.engineering')}</Text>

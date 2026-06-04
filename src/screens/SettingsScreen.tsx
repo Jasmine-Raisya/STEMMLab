@@ -73,7 +73,7 @@ export function SettingsScreen({ onBack, onLoggedOut }: Props) {
     <View style={[styles.container, { backgroundColor: bg }]}>
       <View style={[styles.header, { borderColor: border }]}>
         <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-          <Text style={[styles.backIcon, { color: text }]}>‹</Text>
+          <Text style={[styles.backIcon, { color: text }]}>{'<'}</Text>
         </TouchableOpacity>
         <View>
           <Text style={[styles.title, { color: text }]}>{t('common.settings')}</Text>

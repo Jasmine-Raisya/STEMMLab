@@ -1,4 +1,4 @@
-import { addDoc, collection, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, doc } from 'firebase/firestore';
+import { addDoc, collection, getDoc, getDocs, limit, orderBy, query, serverTimestamp, setDoc, doc, where } from 'firebase/firestore';
 
 import { firestore, isFirebaseConfigured } from './firebaseConfig';
 import { ActivityLog, ActivityReflection, ExperimentRecord, LeaderboardEntry, SensorSample, TeamProfile } from '../types/models';
@@ -41,6 +41,15 @@ export async function syncExperimentRecords(records: ExperimentRecord[]) {
     syncedAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }, { merge: true })));
+}
+
+export async function fetchExperimentRecordsForTeam(teamId: string, maxRecords = 20) {
+  ensureFirebase();
+  const recordsQuery = query(collection(firestore, 'experiment_records'), where('teamId', '==', teamId), limit(maxRecords));
+  const snapshot = await getDocs(recordsQuery);
+  return snapshot.docs
+    .map((entry) => entry.data() as ExperimentRecord)
+    .sort((left, right) => right.timestamp - left.timestamp);
 }
 
 export async function fetchLeaderboard(activityId: string) {

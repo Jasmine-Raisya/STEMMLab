@@ -27,6 +27,7 @@ jest.mock('firebase/firestore', () => ({
   query: jest.fn((...parts) => ({ parts })),
   serverTimestamp: jest.fn(() => 'mock-server-timestamp'),
   setDoc: jest.fn(),
+  where: jest.fn((field, operator, value) => ({ field, operator, value })),
 }));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({

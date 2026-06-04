@@ -29,7 +29,7 @@ export function ActivityHeader({ title, step, total, color, onBack }: ActivityHe
   return (
     <View style={headerStyles.row}>
       <TouchableOpacity accessibilityRole="button" onPress={onBack} style={headerStyles.backButton}>
-        <Text style={headerStyles.backIcon}>‹</Text>
+        <Text style={headerStyles.backIcon}>{'<'}</Text>
       </TouchableOpacity>
       <View style={headerStyles.copy}>
         <Text style={headerStyles.title}>{title}</Text>
