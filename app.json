@@ -4,7 +4,7 @@
     "slug": "stemm-lab-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/adaptable-icon.jpeg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "updates": {
@@ -47,7 +47,7 @@
         "android.permission.WAKE_LOCK"
       ],
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/adaptable-icon.jpeg",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,

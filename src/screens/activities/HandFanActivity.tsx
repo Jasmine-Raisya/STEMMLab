@@ -9,6 +9,7 @@ import { ActivityHeader, BulletList, stemmColors } from '../../components/Activi
 import { ReflectionForm } from '../../components/ReflectionForm';
 import { SpeechButton } from '../../components/SpeechButton';
 import { useTeam } from '../../services/teamContext';
+import { useThemeColors } from '../../ThemeContext';
 
 interface Props {
   onBack: () => void;
@@ -19,10 +20,20 @@ interface FanIteration {
   name: string;
   videoUri: string;
   frameUri: string;
+  material: string;
+  stiffnessK: number;
   bendAngle: number | null;
+  angleRadians: number | null;
+  force: number | null;
 }
 
 const instructionImage = require('../../../assets/exp3.jpg');
+const materialOptions = [
+  { material: 'Thin printer paper', thickness: '0.1 mm', stiffnessK: 0.05, notes: 'Bends very easily' },
+  { material: 'Standard card stock', thickness: '0.25 mm', stiffnessK: 0.2, notes: 'Moderate bend' },
+  { material: 'Thin cardboard', thickness: '0.5 mm', stiffnessK: 0.5, notes: 'Much harder to bend' },
+  { material: 'Corrugated cardboard', thickness: '3 mm', stiffnessK: 2.5, notes: 'Very stiff, almost no bend' },
+];
 
 function translatedArray(value: unknown) {
   return Array.isArray(value) ? value.map(String) : [];
@@ -30,24 +41,25 @@ function translatedArray(value: unknown) {
 
 function SetupGuideScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
   const equipment = translatedArray(t('handFan.equipment', { returnObjects: true }));
   const instructions = translatedArray(t('handFan.instructions', { returnObjects: true }));
 
   return (
-    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>{t('handFan.setup')}</Text>
+    <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
+      <Text style={[s.heading, { color: colors.heading }]}>{t('handFan.setup')}</Text>
       <SpeechButton text={[t('handFan.overview'), ...equipment, ...instructions]} style={s.speech} />
       <Image source={instructionImage} resizeMode="contain" style={s.diagramImage} />
-      <View style={s.section}>
-        <Text style={s.sectionTitle}>{t('parachute.overview')}</Text>
-        <Text style={s.body}>{t('handFan.overview')}</Text>
+      <View style={[s.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[s.sectionTitle, { color: colors.heading }]}>{t('parachute.overview')}</Text>
+        <Text style={[s.body, { color: colors.text }]}>{t('handFan.overview')}</Text>
       </View>
-      <View style={s.section}>
-        <Text style={s.sectionTitle}>{t('handFan.equipmentTitle')}</Text>
+      <View style={[s.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[s.sectionTitle, { color: colors.heading }]}>{t('handFan.equipmentTitle')}</Text>
         <BulletList items={equipment} />
       </View>
-      <View style={s.section}>
-        <Text style={s.sectionTitle}>{t('handFan.instructionsTitle')}</Text>
+      <View style={[s.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[s.sectionTitle, { color: colors.heading }]}>{t('handFan.instructionsTitle')}</Text>
         <BulletList items={instructions} />
       </View>
       <TouchableOpacity style={s.btn} onPress={onNext}>
@@ -58,30 +70,31 @@ function SetupGuideScreen({ onNext }: { onNext: () => void }) {
 }
 
 function StiffnessMatrixScreen({ onNext }: { onNext: () => void }) {
-  const rows = [
-    { material: 'Tissue paper', stiffness: 'Low', expected: 'Large bend' },
-    { material: 'Bond paper', stiffness: 'Medium', expected: 'Moderate bend' },
-    { material: 'Cardboard', stiffness: 'High', expected: 'Small bend' },
-    { material: 'Layered/folded paper', stiffness: 'Variable', expected: 'Depends on design' },
-  ];
+  const colors = useThemeColors();
 
   return (
-    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>Stiffness Matrix</Text>
-      <Text style={[s.body, { marginBottom: 16 }]}>Use this reference before testing each fan iteration. Stiffer materials should bend less under the same airflow.</Text>
-      <View style={s.table}>
+    <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
+      <Text style={[s.heading, { color: colors.heading }]}>Stiffness Matrix</Text>
+      <Text style={[s.body, { color: colors.text, marginBottom: 16 }]}>Use this reference before testing each fan iteration. Stiffer materials should bend less under the same airflow.</Text>
+      <View style={[s.table, { borderColor: colors.border }]}>
         <View style={[s.tableRow, s.tableHead]}>
           <Text style={[s.tableCell, s.tableHeadText]}>Material</Text>
-          <Text style={[s.tableCell, s.tableHeadText]}>Stiffness</Text>
-          <Text style={[s.tableCell, s.tableHeadText]}>Expected bend</Text>
+          <Text style={[s.tableCell, s.tableHeadText]}>Thickness</Text>
+          <Text style={[s.tableCell, s.tableHeadText]}>k (N/rad)</Text>
+          <Text style={[s.tableCell, s.tableHeadText]}>Notes</Text>
         </View>
-        {rows.map((row) => (
+        {materialOptions.map((row) => (
           <View key={row.material} style={s.tableRow}>
-            <Text style={s.tableCell}>{row.material}</Text>
-            <Text style={s.tableCell}>{row.stiffness}</Text>
-            <Text style={s.tableCell}>{row.expected}</Text>
+            <Text style={[s.tableCell, { color: colors.text }]}>{row.material}</Text>
+            <Text style={[s.tableCell, { color: colors.text }]}>{row.thickness}</Text>
+            <Text style={[s.tableCell, { color: colors.text }]}>{row.stiffnessK}</Text>
+            <Text style={[s.tableCell, { color: colors.text }]}>{row.notes}</Text>
           </View>
         ))}
+      </View>
+      <View style={[s.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[s.sectionTitle, { color: colors.heading }]}>Calculation</Text>
+        <Text style={[s.body, { color: colors.text }]}>After the bend angle is entered, the app converts degrees to radians and estimates force with F = k x theta.</Text>
       </View>
       <TouchableOpacity style={s.btn} onPress={onNext}>
         <Text style={s.btnText}>Start Iteration</Text>
@@ -134,21 +147,40 @@ function AngleArch({ angle }: { angle: number }) {
 }
 
 function VideoIterationScreen({ attempt, onSave }: { attempt: number; onSave: (iteration: FanIteration) => void }) {
+  const colors = useThemeColors();
   const [name, setName] = useState('');
   const [videoUri, setVideoUri] = useState('');
   const [frameUri, setFrameUri] = useState('');
+  const [frameTime, setFrameTime] = useState(0);
+  const [material, setMaterial] = useState(materialOptions[0].material);
   const [bendAngle, setBendAngle] = useState('45');
   const player = useVideoPlayer(null);
+  const framePlayer = useVideoPlayer(null);
   const parsedAngle = Number(bendAngle.replace(',', '.'));
   const angleValue = Number.isFinite(parsedAngle) ? Math.max(0, Math.min(180, parsedAngle)) : 0;
+  const selectedMaterial = materialOptions.find((option) => option.material === material) ?? materialOptions[0];
+  const angleRadians = Number(((angleValue * Math.PI) / 180).toFixed(3));
+  const estimatedForce = Number((selectedMaterial.stiffnessK * angleRadians).toFixed(3));
 
   useEffect(() => {
     if (!videoUri) {
-      player.replace(null);
+      void player.replaceAsync(null);
       return;
     }
     void player.replaceAsync({ uri: videoUri });
   }, [player, videoUri]);
+
+  useEffect(() => {
+    if (!frameUri) {
+      void framePlayer.replaceAsync(null);
+      return;
+    }
+
+    void framePlayer.replaceAsync({ uri: frameUri }).then(() => {
+      framePlayer.currentTime = frameTime;
+      framePlayer.pause();
+    });
+  }, [framePlayer, frameTime, frameUri]);
 
   const pickVideo = async () => {
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -157,11 +189,15 @@ function VideoIterationScreen({ attempt, onSave }: { attempt: number; onSave: (i
     if (!result.canceled) {
       setVideoUri(result.assets[0]?.uri ?? '');
       setFrameUri('');
+      setFrameTime(0);
     }
   };
 
   const captureFrame = () => {
-    if (videoUri) setFrameUri(videoUri);
+    if (!videoUri) return;
+    const currentTime = Number.isFinite(player.currentTime) ? player.currentTime : 0;
+    setFrameTime(currentTime);
+    setFrameUri(videoUri);
   };
 
   const changeAngle = (delta: number) => {
@@ -174,41 +210,57 @@ function VideoIterationScreen({ attempt, onSave }: { attempt: number; onSave: (i
       name: name.trim() || `Iteration ${attempt}`,
       videoUri,
       frameUri,
+      material: selectedMaterial.material,
+      stiffnessK: selectedMaterial.stiffnessK,
       bendAngle: Number.isFinite(parsedAngle) ? angleValue : null,
+      angleRadians: Number.isFinite(parsedAngle) ? angleRadians : null,
+      force: Number.isFinite(parsedAngle) ? estimatedForce : null,
     });
     setName('');
     setVideoUri('');
     setFrameUri('');
+    setFrameTime(0);
+    setMaterial(materialOptions[0].material);
     setBendAngle('45');
   };
 
   return (
-    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>Fan Iteration {attempt}</Text>
-      <Text style={[s.body, { marginBottom: 14 }]}>Upload a fan test video, capture a frame, then measure the bend angle from that frame.</Text>
+    <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
+      <Text style={[s.heading, { color: colors.heading }]}>Fan Iteration {attempt}</Text>
+      <Text style={[s.body, { color: colors.text, marginBottom: 14 }]}>Upload a fan test video, capture a frame, then measure the bend angle from that frame.</Text>
       <View style={s.inputGroup}>
-        <Text style={s.label}>Iteration name</Text>
-        <TextInput onChangeText={setName} placeholder={`Iteration ${attempt}`} style={s.input} value={name} />
+        <Text style={[s.label, { color: colors.heading }]}>Iteration name</Text>
+        <TextInput onChangeText={setName} placeholder={`Iteration ${attempt}`} placeholderTextColor={colors.muted} style={[s.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]} value={name} />
+      </View>
+      <View style={s.inputGroup}>
+        <Text style={[s.label, { color: colors.heading }]}>Material</Text>
+        {materialOptions.map((option) => (
+          <TouchableOpacity key={option.material} style={[s.materialOption, { backgroundColor: material === option.material ? colors.cta : colors.surface, borderColor: colors.border }]} onPress={() => setMaterial(option.material)}>
+            <Text style={[s.cardTitle, { color: material === option.material ? colors.ctaText : colors.text }]}>{option.material}</Text>
+            <Text style={[s.body, { color: material === option.material ? colors.ctaText : colors.muted }]}>{option.thickness} | k = {option.stiffnessK} N/rad | {option.notes}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
       {videoUri ? (
         <VideoView contentFit="contain" nativeControls player={player as never} style={s.videoPlayer} />
       ) : (
-        <View style={s.videoUploadCard}>
-          <Text style={s.uploadTitle}>Upload test video</Text>
-          <Text style={s.body}>Choose a video of the fan bending during airflow.</Text>
+        <View style={[s.videoUploadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[s.uploadTitle, { color: colors.heading }]}>Upload test video</Text>
+          <Text style={[s.body, { color: colors.text }]}>Choose a video of the fan bending during airflow.</Text>
         </View>
       )}
-      <TouchableOpacity style={s.outlineBtn} onPress={pickVideo}>
-        <Text style={s.outlineBtnText}>{videoUri ? 'Replace Video' : 'Choose Video'}</Text>
+      <TouchableOpacity style={[s.outlineBtn, { borderColor: colors.border }]} onPress={pickVideo}>
+        <Text style={[s.outlineBtnText, { color: colors.text }]}>{videoUri ? 'Replace Video' : 'Choose Video'}</Text>
       </TouchableOpacity>
       <TouchableOpacity disabled={!videoUri} style={[s.btn, !videoUri && s.disabled]} onPress={captureFrame}>
         <Text style={s.btnText}>Screenshot Current Frame</Text>
       </TouchableOpacity>
       {frameUri ? (
-        <View style={s.frameBox}>
-          <Text style={s.frameLabel}>Frame screenshot reference</Text>
+        <View style={[s.frameBox, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[s.frameLabel, { color: colors.heading }]}>Frame screenshot reference</Text>
           <View style={s.frameStill}>
-            <Text style={s.frameStillText}>Captured frame</Text>
+            <Text style={[s.frameStillText, { color: colors.muted }]}>Captured frame</Text>
+            <VideoView contentFit="contain" nativeControls={false} player={framePlayer as never} style={s.frameVideo} />
             <AngleArch angle={angleValue} />
           </View>
           <View style={s.angleControls}>
@@ -222,12 +274,18 @@ function VideoIterationScreen({ attempt, onSave }: { attempt: number; onSave: (i
               <Text style={s.angleButtonText}>+</Text>
             </TouchableOpacity>
           </View>
-          <Text style={s.frameHelp}>Adjust the arch hand until it matches the fan bend in the video above.</Text>
+          <Text style={[s.frameHelp, { color: colors.muted }]}>Adjust the arch hand until it matches the fan bend in the video above.</Text>
         </View>
       ) : null}
       <View style={s.inputGroup}>
-        <Text style={s.label}>Bend angle from screenshot</Text>
-        <TextInput keyboardType="decimal-pad" onChangeText={(value) => setBendAngle(value.replace(/[^0-9.,]/g, ''))} placeholder="45" style={s.input} value={bendAngle} />
+        <Text style={[s.label, { color: colors.heading }]}>Bend angle from screenshot</Text>
+        <TextInput keyboardType="decimal-pad" onChangeText={(value) => setBendAngle(value.replace(/[^0-9.,]/g, ''))} placeholder="45" placeholderTextColor={colors.muted} style={[s.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]} value={bendAngle} />
+      </View>
+      <View style={[s.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[s.sectionTitle, { color: colors.heading }]}>Force prediction</Text>
+        <Text style={[s.body, { color: colors.text }]}>Material stiffness k: {selectedMaterial.stiffnessK} N/rad</Text>
+        <Text style={[s.body, { color: colors.text }]}>Bend angle theta: {angleValue} degrees = {angleRadians} rad</Text>
+        <Text style={[s.body, { color: colors.text }]}>Estimated force: F = {selectedMaterial.stiffnessK} x {angleRadians} = {estimatedForce} N</Text>
       </View>
       <TouchableOpacity disabled={!videoUri || !frameUri} style={[s.btn, (!videoUri || !frameUri) && s.disabled]} onPress={save}>
         <Text style={s.btnText}>Save Iteration</Text>
@@ -237,25 +295,28 @@ function VideoIterationScreen({ attempt, onSave }: { attempt: number; onSave: (i
 }
 
 function IterationLogScreen({ iterations, onCreateNew, onFinish }: { iterations: FanIteration[]; onCreateNew: () => void; onFinish: () => void }) {
+  const colors = useThemeColors();
   return (
-    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>Iteration Log</Text>
+    <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
+      <Text style={[s.heading, { color: colors.heading }]}>Iteration Log</Text>
       {iterations.length === 0 ? (
-        <View style={s.section}><Text style={s.body}>No fan iterations recorded yet.</Text></View>
+        <View style={[s.section, { backgroundColor: colors.surface, borderColor: colors.border }]}><Text style={[s.body, { color: colors.text }]}>No fan iterations recorded yet.</Text></View>
       ) : iterations.map((iteration) => (
-        <View key={iteration.id} style={s.card}>
-          <Text style={s.cardTitle}>{iteration.name}</Text>
-          <Text style={s.body}>Bend angle: {iteration.bendAngle ?? '-'} degrees</Text>
-          <Text style={s.body}>Video: {iteration.videoUri ? 'attached' : '-'}</Text>
-          <Text style={s.body}>Screenshot frame: {iteration.frameUri ? 'captured' : '-'}</Text>
+        <View key={iteration.id} style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[s.cardTitle, { color: colors.text }]}>{iteration.name}</Text>
+          <Text style={[s.body, { color: colors.text }]}>Material: {iteration.material} | k = {iteration.stiffnessK} N/rad</Text>
+          <Text style={[s.body, { color: colors.text }]}>Bend angle: {iteration.bendAngle ?? '-'} degrees</Text>
+          <Text style={[s.body, { color: colors.text }]}>Force prediction: {iteration.force ?? '-'} N</Text>
+          <Text style={[s.body, { color: colors.text }]}>Video: {iteration.videoUri ? 'attached' : '-'}</Text>
+          <Text style={[s.body, { color: colors.text }]}>Screenshot frame: {iteration.frameUri ? 'captured' : '-'}</Text>
         </View>
       ))}
       <TouchableOpacity style={s.btn} onPress={onCreateNew}>
         <Text style={s.btnText}>Create Another Iteration</Text>
       </TouchableOpacity>
       {iterations.length > 0 && (
-        <TouchableOpacity style={s.outlineBtn} onPress={onFinish}>
-          <Text style={s.outlineBtnText}>Finish and Compare</Text>
+        <TouchableOpacity style={[s.outlineBtn, { borderColor: colors.border }]} onPress={onFinish}>
+          <Text style={[s.outlineBtnText, { color: colors.text }]}>Finish and Compare</Text>
         </TouchableOpacity>
       )}
     </ScrollView>
@@ -264,25 +325,28 @@ function IterationLogScreen({ iterations, onCreateNew, onFinish }: { iterations:
 
 function LeaderboardScreen({ iterations, onNext }: { iterations: FanIteration[]; onNext: () => void }) {
   const { team } = useTeam();
+  const colors = useThemeColors();
   const values = iterations.map((iteration) => iteration.bendAngle).filter((value): value is number => typeof value === 'number');
   const best = [...iterations].filter((iteration) => typeof iteration.bendAngle === 'number').sort((a, b) => (b.bendAngle ?? 0) - (a.bendAngle ?? 0))[0];
   const average = values.length ? (values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1) : '-';
 
   return (
-    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>Fan Results</Text>
-      <View style={[s.lbRow, s.lbFirst]}>
-        <Text style={s.rank}>1.</Text>
+    <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
+      <Text style={[s.heading, { color: colors.heading }]}>Fan Results</Text>
+      <View style={[s.lbRow, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[s.rank, { color: colors.heading }]}>1.</Text>
         <View style={s.flex}>
-          <Text style={s.cardTitle}>{team?.teamName ?? 'Local team'}</Text>
-          <Text style={s.body}>{iterations.length} attempts | {average} degrees average</Text>
+          <Text style={[s.cardTitle, { color: colors.text }]}>{team?.teamName ?? 'Local team'}</Text>
+          <Text style={[s.body, { color: colors.text }]}>{iterations.length} attempts | {average} degrees average</Text>
         </View>
         <Text style={s.score}>{best ? `${best.bendAngle} degrees` : '-'}</Text>
       </View>
       {iterations.map((iteration) => (
-        <View key={iteration.id} style={s.card}>
-          <Text style={s.cardTitle}>{iteration.name}</Text>
-          <Text style={s.body}>Measured bend angle: {iteration.bendAngle ?? '-'} degrees</Text>
+        <View key={iteration.id} style={[s.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[s.cardTitle, { color: colors.text }]}>{iteration.name}</Text>
+          <Text style={[s.body, { color: colors.text }]}>Material: {iteration.material} | k = {iteration.stiffnessK} N/rad</Text>
+          <Text style={[s.body, { color: colors.text }]}>Measured bend angle: {iteration.bendAngle ?? '-'} degrees ({iteration.angleRadians ?? '-'} rad)</Text>
+          <Text style={[s.body, { color: colors.text }]}>Estimated force: {iteration.force ?? '-'} N</Text>
         </View>
       ))}
       <TouchableOpacity style={s.btn} onPress={onNext}>
@@ -295,13 +359,14 @@ function LeaderboardScreen({ iterations, onNext }: { iterations: FanIteration[];
 function WriteUpScreen({ iterations, onBack }: { iterations: FanIteration[]; onBack: () => void }) {
   const { t } = useTranslation();
   const { team } = useTeam();
+  const colors = useThemeColors();
   const baseFields = translatedArray(t('handFan.writeUpFields', { returnObjects: true }));
-  const iterationFields = iterations.map((iteration) => `Explain the performance of ${iteration.name} using its measured bend angle.`);
+  const iterationFields = iterations.map((iteration) => `Explain the performance of ${iteration.name} using its measured bend angle and estimated force (${iteration.force ?? '-'} N).`);
 
   return (
-    <ScrollView style={s.pad} contentContainerStyle={s.scrollContent}>
-      <Text style={s.heading}>{t('common.writeUp')}</Text>
-      <Text style={[s.body, { marginBottom: 16 }]}>{t('handFan.writeSub')}</Text>
+    <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
+      <Text style={[s.heading, { color: colors.heading }]}>{t('common.writeUp')}</Text>
+      <Text style={[s.body, { color: colors.text, marginBottom: 16 }]}>{t('handFan.writeSub')}</Text>
       <SpeechButton text={[...baseFields, ...iterationFields]} style={s.speech} />
       <ReflectionForm activityId="handFan" teamId={team?.id ?? 'local'} questions={[...baseFields, ...iterationFields]} onSaved={onBack} />
     </ScrollView>
@@ -310,6 +375,7 @@ function WriteUpScreen({ iterations, onBack }: { iterations: FanIteration[]; onB
 
 export function HandFanActivity({ onBack }: Props) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
   const [step, setStep] = useState(1);
   const [iterations, setIterations] = useState<FanIteration[]>([]);
   const total = 6;
@@ -320,7 +386,7 @@ export function HandFanActivity({ onBack }: Props) {
   };
 
   return (
-    <View style={s.root}>
+    <View style={[s.root, { backgroundColor: colors.background }]}>
       <ActivityHeader title={t('handFan.title')} step={step} total={total} color="#9C27B0" onBack={step === 1 ? onBack : () => setStep(step - 1)} />
       <View style={s.flex}>
         {step === 1 && <SetupGuideScreen onNext={() => setStep(2)} />}
@@ -358,6 +424,7 @@ const s = StyleSheet.create({
   inputGroup: { marginBottom: 14 },
   label: { color: stemmColors.blue, fontSize: 16, fontWeight: '800', marginBottom: 8 },
   input: { backgroundColor: stemmColors.surface, borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, color: stemmColors.text, fontSize: 16, paddingHorizontal: 14, paddingVertical: 12 },
+  materialOption: { borderRadius: 12, borderWidth: 1, marginBottom: 8, padding: 12 },
   videoPlayer: { aspectRatio: 16 / 9, backgroundColor: '#102031', borderRadius: 14, marginBottom: 14, overflow: 'hidden', width: '100%' },
   videoUploadCard: { alignItems: 'center', aspectRatio: 16 / 9, backgroundColor: '#EAF4F8', borderColor: stemmColors.blue, borderRadius: 14, borderStyle: 'dashed', borderWidth: 2, justifyContent: 'center', marginBottom: 14, padding: 18 },
   uploadTitle: { color: stemmColors.blue, fontSize: 18, fontWeight: '900', marginBottom: 8, textAlign: 'center' },
@@ -365,6 +432,7 @@ const s = StyleSheet.create({
   frameLabel: { color: stemmColors.blue, fontSize: 15, fontWeight: '800', marginBottom: 8 },
   frameStill: { alignItems: 'center', backgroundColor: '#F2E7DF', borderColor: stemmColors.border, borderRadius: 12, borderWidth: 1, marginBottom: 12, minHeight: 230, overflow: 'hidden', padding: 12 },
   frameStillText: { alignSelf: 'flex-start', color: stemmColors.muted, fontSize: 13, fontWeight: '800', marginBottom: 4, textTransform: 'uppercase' },
+  frameVideo: { aspectRatio: 16 / 9, backgroundColor: '#102031', borderRadius: 10, marginBottom: 10, width: '100%' },
   archWrap: { alignItems: 'center', width: '100%' },
   archAngle: { color: '#F5674D', fontSize: 22, fontWeight: '900', marginTop: -8 },
   angleControls: { alignItems: 'center', flexDirection: 'row', gap: 10, marginBottom: 8 },

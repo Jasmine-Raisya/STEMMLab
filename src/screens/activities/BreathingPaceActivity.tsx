@@ -67,7 +67,7 @@ function PredictionScreen({ predictions, onChange, onNext }: { predictions: Reco
               onChangeText={(value) => onChange(action.key, value.replace(/[^0-9]/g, ''))}
               placeholder="breaths/min"
               placeholderTextColor={colors.muted}
-              style={[styles.input, styles.valueCell, { borderColor: colors.border, color: colors.text }]}
+              style={[styles.input, styles.valueCell, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
               value={predictions[action.key]}
             />
           </View>
@@ -154,8 +154,9 @@ function BreathingRecordScreen({ label, onNext }: { label: string; onNext: (brea
   );
 }
 
-function JoggingTimerScreen({ onNext }: { onNext: () => void }) {
+function JoggingTimerScreen({ onNext, resetKey }: { onNext: () => void; resetKey: number }) {
   const colors = useThemeColors();
+  const darkButtonBorder = colors.background === '#343133' ? { borderColor: colors.muted, borderWidth: 2 } : null;
   const [timeLeft, setTimeLeft] = useState(60);
   const [running, setRunning] = useState(false);
   const [started, setStarted] = useState(false);
@@ -181,6 +182,12 @@ function JoggingTimerScreen({ onNext }: { onNext: () => void }) {
     };
   }, [running, timeLeft]);
 
+  useEffect(() => {
+    setRunning(false);
+    setStarted(false);
+    setTimeLeft(60);
+  }, [resetKey]);
+
   const start = () => {
     setTimeLeft(60);
     setStarted(true);
@@ -194,7 +201,7 @@ function JoggingTimerScreen({ onNext }: { onNext: () => void }) {
       <View style={styles.countdownPanel}>
         <Text style={[styles.fullCountdown, { color: colors.cta }]}>{timeLeft}</Text>
         <Text style={[styles.body, { color: colors.muted }]}>seconds</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: running ? '#C53A2C' : colors.cta }]} onPress={running ? () => setRunning(false) : start}>
+        <TouchableOpacity style={[styles.btn, darkButtonBorder, { backgroundColor: running ? '#C53A2C' : colors.cta }]} onPress={running ? () => setRunning(false) : start}>
           <Text style={styles.btnText}>{running ? 'Stop Jogging' : 'Start Jogging'}</Text>
         </TouchableOpacity>
       </View>
@@ -205,9 +212,14 @@ function JoggingTimerScreen({ onNext }: { onNext: () => void }) {
   );
 }
 
-function StarJumpScreen({ onNext }: { onNext: () => void }) {
+function StarJumpScreen({ onNext, resetKey }: { onNext: () => void; resetKey: number }) {
   const colors = useThemeColors();
+  const darkButtonBorder = colors.background === '#343133' ? { borderColor: colors.muted, borderWidth: 2 } : null;
   const [completed, setCompleted] = useState(false);
+
+  useEffect(() => {
+    setCompleted(false);
+  }, [resetKey]);
 
   return (
     <View style={[styles.pad, styles.flex, { backgroundColor: colors.background }]}>
@@ -217,7 +229,7 @@ function StarJumpScreen({ onNext }: { onNext: () => void }) {
         <Text style={[styles.fullCountdown, { color: colors.cta }]}>100</Text>
         <Text style={[styles.cardTitle, { color: colors.text }]}>star jumps</Text>
       </View>
-      <TouchableOpacity style={[styles.btn, { backgroundColor: completed ? stemmColors.green : colors.cta }]} onPress={() => setCompleted(true)}>
+      <TouchableOpacity style={[styles.btn, darkButtonBorder, { backgroundColor: completed ? stemmColors.green : colors.cta }]} onPress={() => setCompleted(true)}>
         <Text style={styles.btnText}>{completed ? 'Completed' : 'Mark 100 Star Jumps Done'}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={[styles.outlineBtn, { borderColor: colors.heading }, !completed && styles.disabled]} disabled={!completed} onPress={onNext}>
@@ -275,6 +287,7 @@ export function BreathingPaceActivity({ onBack }: Props) {
   const { t } = useTranslation();
   const colors = useThemeColors();
   const [step, setStep] = useState(1);
+  const [movementResetKey, setMovementResetKey] = useState(0);
   const [predictions, setPredictions] = useState<Record<BreathKey, string>>({ rest: '', jogging: '', starJumps: '' });
   const [actuals, setActuals] = useState<Record<BreathKey, number | null>>({ rest: null, jogging: null, starJumps: null });
   const total = 8;
@@ -288,15 +301,26 @@ export function BreathingPaceActivity({ onBack }: Props) {
     setStep(nextStep);
   };
 
+  const handleBack = () => {
+    if (step === 1) {
+      onBack();
+      return;
+    }
+    if (step === 3 || step === 5) {
+      setMovementResetKey((value) => value + 1);
+    }
+    setStep((previous) => Math.max(1, previous - 1));
+  };
+
   return (
     <View style={[styles.root, { backgroundColor: colors.background }]}>
-      <ActivityHeader title={t('breathing.title')} step={step} total={total} color={stemmColors.orange} onBack={step === 1 ? onBack : () => setStep(step - 1)} />
+      <ActivityHeader title={t('breathing.title')} step={step} total={total} color={stemmColors.orange} onBack={handleBack} />
       <View style={styles.flex}>
         {step === 1 && <PredictionScreen predictions={predictions} onChange={updatePrediction} onNext={() => setStep(2)} />}
         {step === 2 && <BreathingRecordScreen label="Breathing at rest" onNext={(breaths) => saveActual('rest', breaths, 3)} />}
-        {step === 3 && <JoggingTimerScreen onNext={() => setStep(4)} />}
+        {step === 3 && <JoggingTimerScreen resetKey={movementResetKey} onNext={() => setStep(4)} />}
         {step === 4 && <BreathingRecordScreen label="After exercise 1 (jogging)" onNext={(breaths) => saveActual('jogging', breaths, 5)} />}
-        {step === 5 && <StarJumpScreen onNext={() => setStep(6)} />}
+        {step === 5 && <StarJumpScreen resetKey={movementResetKey} onNext={() => setStep(6)} />}
         {step === 6 && <BreathingRecordScreen label="After exercise 2 (star jumps)" onNext={(breaths) => saveActual('starJumps', breaths, 7)} />}
         {step === 7 && <ComparisonScreen predictions={predictions} actuals={actuals} onNext={() => setStep(8)} />}
         {step === 8 && <MedicalReflectionScreen onBack={onBack} />}

@@ -7,8 +7,6 @@ import './src/services/i18n';
 import { LanguageProvider } from './src/services/LanguageContext';
 import { TeamProvider, useTeam } from './src/services/teamContext';
 import { initializeDatabase } from './src/services/localDb';
-import { registerBackgroundSync } from './src/services/backgroundSync';
-import { requestNotificationPermissions } from './src/services/notificationService';
 import { useFirebaseAuth } from './src/services/authService';
 
 // Screens
@@ -73,8 +71,11 @@ function isRouteId(screen: number): screen is RouteId {
 export default function App() {
   useEffect(() => {
     void initializeDatabase();
-    void requestNotificationPermissions();
-    void registerBackgroundSync();
+    if (!__DEV__) {
+      void import('./src/services/backgroundSync').then(({ registerBackgroundSync }) => {
+        void registerBackgroundSync();
+      });
+    }
   }, []);
 
   return (

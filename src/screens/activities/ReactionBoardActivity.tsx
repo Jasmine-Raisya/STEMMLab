@@ -164,6 +164,7 @@ function TracingPathScreen({ onNext, onTraceResult }: { onNext: () => void; onTr
   const [points, setPoints] = useState<TracePoint[]>([]);
   const [box, setBox] = useState({ width: 1, height: 1 });
   const [accuracy, setAccuracy] = useState<number | null>(null);
+  const pointsRef = useRef<TracePoint[]>([]);
 
   const toSvgPoint = (x: number, y: number) => ({
     x: Math.max(0, Math.min(300, (x / box.width) * 300)),
@@ -176,20 +177,23 @@ function TracingPathScreen({ onNext, onTraceResult }: { onNext: () => void; onTr
     onPanResponderGrant: (event) => {
       setAccuracy(null);
       const { locationX, locationY } = event.nativeEvent;
-      setPoints([toSvgPoint(locationX, locationY)]);
+      const nextPoints = [toSvgPoint(locationX, locationY)];
+      pointsRef.current = nextPoints;
+      setPoints(nextPoints);
     },
     onPanResponderMove: (event) => {
       const { locationX, locationY } = event.nativeEvent;
       const next = toSvgPoint(locationX, locationY);
-      setPoints((previous) => [...previous.slice(-179), next]);
+      setPoints((previous) => {
+        const nextPoints = [...previous.slice(-179), next];
+        pointsRef.current = nextPoints;
+        return nextPoints;
+      });
     },
     onPanResponderRelease: () => {
-      setPoints((current) => {
-        const nextAccuracy = traceAccuracy(current);
-        setAccuracy(nextAccuracy);
-        onTraceResult(nextAccuracy);
-        return current;
-      });
+      const nextAccuracy = traceAccuracy(pointsRef.current);
+      setAccuracy(nextAccuracy);
+      onTraceResult(nextAccuracy);
     },
   }), [box.height, box.width, onTraceResult]);
 
@@ -215,7 +219,7 @@ function TracingPathScreen({ onNext, onTraceResult }: { onNext: () => void; onTr
         <Text style={[s.cardTitle, { color: colors.text }]}>Tracing accuracy</Text>
         <Text style={[s.score, { color: colors.cta }]}>{accuracy === null ? '-' : `${accuracy}%`}</Text>
       </View>
-      <TouchableOpacity style={s.btn} onPress={() => { setPoints([]); setAccuracy(null); }}>
+      <TouchableOpacity style={s.btn} onPress={() => { pointsRef.current = []; setPoints([]); setAccuracy(null); }}>
         <Text style={s.btnText}>Reset Trace</Text>
       </TouchableOpacity>
       <TouchableOpacity style={s.btn} onPress={onNext}>

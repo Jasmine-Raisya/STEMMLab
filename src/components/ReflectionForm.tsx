@@ -1,11 +1,14 @@
-import React from 'react';
-import { Image, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useState } from 'react';
+import { Animated, Image, StyleProp, StyleSheet, Text, TextInput, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import * as ImagePicker from 'expo-image-picker';
 
 import { stemmColors } from './ActivityScaffold';
 import { useActivityReflection } from '../hooks/useActivityReflection';
+import { useButtonPress } from '../hooks/useButtonPress';
+import { useThemeColors } from '../ThemeContext';
 import { ActivityId } from '../types/models';
+import { brandColors, radius, typography } from '../tokens';
 
 interface Props {
   activityId: ActivityId;
@@ -15,6 +18,39 @@ interface Props {
   attachmentQuestions?: Record<string, string>;
   ratingPlacement?: 'top' | 'bottom';
   ratingStyle?: 'numbers' | 'stars';
+}
+
+function ScaleButton({
+  accessibilityLabel,
+  children,
+  disabled,
+  onPress,
+  pressedScale,
+  style,
+}: {
+  accessibilityLabel: string;
+  children: React.ReactNode;
+  disabled?: boolean;
+  onPress: () => void;
+  pressedScale?: number;
+  style: StyleProp<ViewStyle>;
+}) {
+  const press = useButtonPress(pressedScale);
+  return (
+    <Animated.View style={{ transform: [{ scale: press.scale }] }}>
+      <TouchableOpacity
+        accessibilityLabel={accessibilityLabel}
+        accessibilityRole="button"
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={press.handlePressIn}
+        onPressOut={press.handlePressOut}
+        style={style}
+      >
+        {children}
+      </TouchableOpacity>
+    </Animated.View>
+  );
 }
 
 export function ReflectionForm({
@@ -27,11 +63,15 @@ export function ReflectionForm({
   ratingStyle = 'numbers',
 }: Props) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
   const reflection = useActivityReflection(activityId, teamId, questions);
+  const [focusedQuestion, setFocusedQuestion] = useState('');
+  const [saved, setSaved] = useState(false);
 
   const handleSave = async () => {
     await reflection.save();
-    onSaved();
+    setSaved(true);
+    setTimeout(onSaved, 220);
   };
 
   const pickImage = async (question: string) => {
@@ -51,21 +91,26 @@ export function ReflectionForm({
 
   const renderRating = () => (
     <View style={styles.ratingBlock}>
-      <Text style={styles.label}>{t('common.rating')}</Text>
+      <Text style={[styles.label, { color: colors.heading }]}>{t('common.rating')}</Text>
       <View style={styles.ratingRow}>
         {[1, 2, 3, 4, 5].map((value) => {
           const selected = ratingStyle === 'stars' ? reflection.rating >= value : reflection.rating === value;
           return (
-            <TouchableOpacity
-              accessibilityRole="button"
+            <ScaleButton
+              accessibilityLabel={`${t('common.rating')} ${value}`}
               key={value}
               onPress={() => reflection.setRating(value)}
-              style={[styles.ratingButton, ratingStyle === 'stars' && styles.starButton, selected && styles.ratingSelected]}
+              pressedScale={0.95}
+              style={[
+                styles.ratingButton,
+                { backgroundColor: selected ? colors.accent : colors.surface, borderColor: selected ? colors.accent : colors.border },
+                ratingStyle === 'stars' && styles.starButton,
+              ]}
             >
-              <Text style={[styles.ratingText, ratingStyle === 'stars' && styles.starText, selected && styles.ratingTextSelected]}>
+              <Text style={[styles.ratingText, { color: selected ? colors.accentText : colors.text }, ratingStyle === 'stars' && styles.starText]}>
                 {ratingStyle === 'stars' ? '★' : value}
               </Text>
-            </TouchableOpacity>
+            </ScaleButton>
           );
         })}
       </View>
@@ -78,12 +123,12 @@ export function ReflectionForm({
 
       {questions.map((question) => (
         <View key={question} style={styles.field}>
-          <Text style={styles.label}>{question}</Text>
+          <Text style={[styles.label, { color: colors.heading }]}>{question}</Text>
           {attachmentQuestions[question] ? (
             <>
-              <TouchableOpacity accessibilityRole="button" onPress={() => pickImage(question)} style={styles.attachmentButton}>
-                <Text style={styles.attachmentText}>{attachmentQuestions[question]}</Text>
-              </TouchableOpacity>
+              <ScaleButton accessibilityLabel={attachmentQuestions[question]} onPress={() => pickImage(question)} style={styles.attachmentButton}>
+                <Text style={styles.attachmentText}>📷 {attachmentQuestions[question]}</Text>
+              </ScaleButton>
               {reflection.answers[question]?.length > 0 && (
                 <Image source={{ uri: reflection.answers[question] }} style={styles.previewImage} />
               )}
@@ -91,9 +136,20 @@ export function ReflectionForm({
           ) : (
             <TextInput
               multiline
+              onBlur={() => setFocusedQuestion('')}
               onChangeText={(value) => reflection.updateAnswer(question, value)}
+              onFocus={() => setFocusedQuestion(question)}
               placeholder={t('common.typeYourAnswer')}
-              style={styles.input}
+              placeholderTextColor={colors.muted}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.input,
+                  borderColor: focusedQuestion === question ? colors.accent : colors.border,
+                  borderWidth: focusedQuestion === question ? 2 : 1,
+                  color: colors.text,
+                },
+              ]}
               textAlignVertical="top"
               value={reflection.answers[question]}
             />
@@ -103,30 +159,33 @@ export function ReflectionForm({
 
       {ratingPlacement === 'bottom' && renderRating()}
 
-      <TouchableOpacity disabled={!reflection.isValid} onPress={handleSave} style={[styles.saveButton, !reflection.isValid && styles.disabled]}>
-        <Text style={styles.saveText}>{t('common.saveReflection')}</Text>
-      </TouchableOpacity>
+      <ScaleButton
+        accessibilityLabel={t('common.saveReflection')}
+        disabled={!reflection.isValid}
+        onPress={handleSave}
+        style={[styles.saveButton, !reflection.isValid && styles.disabled]}
+      >
+        <Text style={styles.saveText}>{saved ? '✓' : t('common.saveReflection')}</Text>
+      </ScaleButton>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrap: { gap: 12 },
-  label: { color: stemmColors.blue, fontSize: 16, fontWeight: '800' },
+  label: { ...typography.body, color: stemmColors.blue, fontWeight: '800' },
   ratingBlock: { gap: 8 },
   ratingRow: { flexDirection: 'row', gap: 8 },
-  ratingButton: { alignItems: 'center', borderColor: stemmColors.border, borderRadius: 12, borderWidth: 1, height: 44, justifyContent: 'center', width: 44 },
-  starButton: { borderRadius: 22 },
-  ratingSelected: { backgroundColor: stemmColors.green, borderColor: stemmColors.green },
+  ratingButton: { alignItems: 'center', borderColor: stemmColors.border, borderRadius: radius.radiusMd, borderWidth: 1, height: 48, justifyContent: 'center', width: 48 },
+  starButton: { borderRadius: radius.radiusFull },
   ratingText: { color: stemmColors.blue, fontWeight: '900' },
   starText: { fontSize: 22, lineHeight: 26 },
-  ratingTextSelected: { color: '#fff' },
   field: { gap: 6 },
-  input: { borderColor: stemmColors.border, borderRadius: 14, borderWidth: 1, color: stemmColors.text, fontSize: 16, minHeight: 92, padding: 12 },
-  attachmentButton: { alignItems: 'center', backgroundColor: stemmColors.blue, borderRadius: 14, minHeight: 52, justifyContent: 'center', paddingHorizontal: 16 },
-  attachmentText: { color: '#fff', fontSize: 16, fontWeight: '900', textAlign: 'center' },
-  previewImage: { aspectRatio: 4 / 3, borderRadius: 14, marginTop: 8, width: '100%' },
-  saveButton: { alignItems: 'center', backgroundColor: stemmColors.green, borderRadius: 14, minHeight: 52, justifyContent: 'center' },
+  input: { ...typography.body, borderColor: stemmColors.border, borderRadius: radius.radiusMd, borderWidth: 1, color: stemmColors.text, minHeight: 100, padding: 12 },
+  attachmentButton: { alignItems: 'center', backgroundColor: brandColors.coral, borderRadius: radius.radiusMd, minHeight: 56, justifyContent: 'center', paddingHorizontal: 16 },
+  attachmentText: { color: brandColors.blush, fontSize: 16, fontWeight: '900', textAlign: 'center' },
+  previewImage: { aspectRatio: 4 / 3, borderRadius: radius.radiusMd, marginTop: 8, width: '100%' },
+  saveButton: { alignItems: 'center', backgroundColor: brandColors.oliveGold, borderRadius: radius.radiusMd, minHeight: 56, justifyContent: 'center' },
   disabled: { opacity: 0.45 },
-  saveText: { color: '#fff', fontSize: 17, fontWeight: '900' },
+  saveText: { color: brandColors.charcoal, fontSize: 17, fontWeight: '900' },
 });

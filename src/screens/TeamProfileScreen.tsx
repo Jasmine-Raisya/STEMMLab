@@ -7,6 +7,7 @@ import { fetchExperimentRecordsForTeam } from '../services/firestoreService';
 import { formatTeamDisplayId, useTeam } from '../services/teamContext';
 import { useThemeColors } from '../ThemeContext';
 import { ActivityId, ExperimentRecord } from '../types/models';
+import { brandColors, radius, typography } from '../tokens';
 
 interface Props {
   onBack: () => void;
@@ -32,6 +33,7 @@ export function TeamProfileScreen({ onBack }: Props) {
   const [isLoadingRecords, setIsLoadingRecords] = useState(false);
   const [recordsError, setRecordsError] = useState('');
   const [selectedRecord, setSelectedRecord] = useState<ExperimentRecord | null>(null);
+  const visibleRecords = useMemo(() => dedupeExperimentRecords(records), [records]);
 
   useEffect(() => {
     let mounted = true;
@@ -61,7 +63,7 @@ export function TeamProfileScreen({ onBack }: Props) {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.header, { backgroundColor: colors.elevated, borderColor: colors.border }]}>
-        <TouchableOpacity onPress={onBack} style={[styles.backBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <TouchableOpacity accessibilityLabel="Go back" accessibilityRole="button" onPress={onBack} style={[styles.backBtn, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           <Text style={[styles.backIcon, { color: colors.heading }]}>{'<'}</Text>
         </TouchableOpacity>
         <Text style={[styles.title, { color: colors.heading }]}>{t('common.teamProfile')}</Text>
@@ -99,7 +101,7 @@ export function TeamProfileScreen({ onBack }: Props) {
           </View>
         ))}
 
-        <TouchableOpacity style={[styles.changeBtn, { borderColor: colors.cta }]}>
+        <TouchableOpacity accessibilityLabel={t('common.changeGrade')} accessibilityRole="button" onPress={() => undefined} style={[styles.changeBtn, { borderColor: colors.cta }]}>
           <Text style={[styles.changeBtnText, { color: colors.cta }]}>{t('common.changeGrade')}</Text>
         </TouchableOpacity>
 
@@ -108,7 +110,7 @@ export function TeamProfileScreen({ onBack }: Props) {
           error={recordsError}
           isLoading={isLoadingRecords}
           onSelect={setSelectedRecord}
-          records={records}
+          records={visibleRecords}
         />
       </ScrollView>
 
@@ -163,8 +165,8 @@ function ExperimentHistorySection({
 function ExperimentRecordPreview({ colors, onPress, record }: { colors: ReturnType<typeof useThemeColors>; onPress: () => void; record: ExperimentRecord }) {
   const detailType = getRecordType(record);
   return (
-    <TouchableOpacity activeOpacity={0.82} onPress={onPress} style={[styles.recordCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-      <View style={[styles.recordAccent, { backgroundColor: colors.softGreen }]}>
+    <TouchableOpacity accessibilityLabel={`Open ${activityLabels[record.activityId as ActivityId] ?? record.activityId} record`} accessibilityRole="button" activeOpacity={0.82} onPress={onPress} style={[styles.recordCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+      <View style={[styles.recordAccent, { backgroundColor: colors.accent }]}>
         <Text style={styles.recordAccentText}>{getActivityInitial(record.activityId as ActivityId)}</Text>
       </View>
       <View style={styles.recordCopy}>
@@ -173,7 +175,7 @@ function ExperimentRecordPreview({ colors, onPress, record }: { colors: ReturnTy
       </View>
       <View style={styles.scorePill}>
         <Text style={[styles.scoreLabel, { color: colors.muted }]}>Score</Text>
-        <Text style={styles.scoreValue}>{formatScore(record.score)}</Text>
+        <Text style={[styles.scoreValue, { color: colors.background === brandColors.charcoal ? colors.accent : colors.cta }]}>{formatScore(record.score)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -186,12 +188,13 @@ function ExperimentRecordModal({ colors, onClose, record }: { colors: ReturnType
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={Boolean(record)}>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalPanel, { backgroundColor: colors.elevated }]}>
+          <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
             <View style={styles.flex}>
               <Text style={[styles.modalTitle, { color: colors.heading }]}>{record ? activityLabels[record.activityId as ActivityId] ?? record.activityId : 'Experiment Record'}</Text>
               <Text style={[styles.modalMeta, { color: colors.muted }]}>{record ? formatDate(record.timestamp) : ''}</Text>
             </View>
-            <TouchableOpacity accessibilityRole="button" onPress={onClose} style={[styles.closeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <TouchableOpacity accessibilityLabel="Close experiment record" accessibilityRole="button" onPress={onClose} style={[styles.closeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
               <Text style={[styles.closeText, { color: colors.heading }]}>x</Text>
             </TouchableOpacity>
           </View>
@@ -239,6 +242,31 @@ function getRecordType(record: ExperimentRecord) {
   return type.split('_').map((part) => part.charAt(0).toUpperCase() + part.slice(1)).join(' ');
 }
 
+function dedupeExperimentRecords(records: ExperimentRecord[]) {
+  const newestByKey = new Map<string, ExperimentRecord>();
+
+  records.forEach((record) => {
+    const key = getRecordDedupeKey(record);
+    const existing = newestByKey.get(key);
+    if (!existing || record.timestamp > existing.timestamp) {
+      newestByKey.set(key, record);
+    }
+  });
+
+  return Array.from(newestByKey.values()).sort((a, b) => b.timestamp - a.timestamp);
+}
+
+function getRecordDedupeKey(record: ExperimentRecord) {
+  const detailType = typeof record.details?.type === 'string' ? record.details.type : 'experiment';
+  const recordDay = Number.isFinite(record.timestamp) ? new Date(record.timestamp).toDateString() : 'unknown-day';
+
+  if (detailType === 'sensor_sample' || detailType === 'reflection') {
+    return `${record.activityId}|${detailType}|${recordDay}`;
+  }
+
+  return `${record.activityId}|${detailType}|${recordDay}|${formatScore(record.score)}|${JSON.stringify(record.details ?? {})}`;
+}
+
 function getActivityInitial(activityId: ActivityId) {
   return (activityLabels[activityId] ?? activityId).charAt(0).toUpperCase();
 }
@@ -281,44 +309,45 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingVertical: 20,
   },
-  backBtn: { alignItems: 'center', borderRadius: 14, borderWidth: 1, height: 44, justifyContent: 'center', width: 44 },
-  backIcon: { fontSize: 24, fontWeight: '900', lineHeight: 28 },
-  title: { fontSize: 24, fontWeight: '800' },
+  backBtn: { alignItems: 'center', borderRadius: radius.radiusMd, borderWidth: 1, height: 48, justifyContent: 'center', width: 48 },
+  backIcon: { fontSize: 30, fontWeight: '900', lineHeight: 34 },
+  title: { ...typography.heading2 },
   content: { flex: 1 },
   contentInner: { paddingBottom: 28, paddingHorizontal: 24, paddingTop: 20 },
-  idCard: { borderRadius: 8, marginBottom: 20, padding: 22 },
-  idLabel: { color: stemmColors.text, fontSize: 14, fontWeight: '800', marginBottom: 4 },
-  idValue: { color: stemmColors.text, fontSize: 22, fontWeight: '900' },
+  idCard: { borderRadius: radius.radiusLg, marginBottom: 20, padding: 24 },
+  idLabel: { ...typography.mono, color: stemmColors.text, fontWeight: '800', marginBottom: 4 },
+  idValue: { ...typography.heading2, color: stemmColors.text, fontFamily: 'Fira Code' },
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
-  statCard: { borderRadius: 8, borderWidth: 1, flex: 1, padding: 16 },
-  emailCard: { borderRadius: 8, borderWidth: 1, marginBottom: 20, padding: 16 },
+  statCard: { borderRadius: radius.radiusMd, borderWidth: 1, flex: 1, padding: 16 },
+  emailCard: { borderRadius: radius.radiusMd, borderWidth: 1, marginBottom: 20, padding: 16 },
   statLabel: { fontSize: 14, marginBottom: 4 },
   statValue: { fontSize: 16, fontWeight: '800' },
-  sectionTitle: { fontSize: 18, fontWeight: '800', marginBottom: 10 },
-  memberCard: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 8, padding: 14 },
-  avatar: { alignItems: 'center', borderRadius: 20, height: 40, justifyContent: 'center', width: 40 },
+  sectionTitle: { ...typography.heading3, marginBottom: 10 },
+  memberCard: { alignItems: 'center', borderRadius: radius.radiusMd, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 8, padding: 14 },
+  avatar: { alignItems: 'center', borderRadius: radius.radiusFull, height: 44, justifyContent: 'center', width: 44 },
   avatarText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   memberName: { fontSize: 16 },
-  changeBtn: { alignItems: 'center', borderRadius: 8, borderWidth: 2, marginVertical: 20, paddingVertical: 14 },
+  changeBtn: { alignItems: 'center', borderRadius: radius.radiusMd, borderWidth: 2, justifyContent: 'center', marginVertical: 20, minHeight: 48, paddingVertical: 14 },
   changeBtnText: { fontSize: 16, fontWeight: '800' },
   historySection: { borderTopWidth: 1, paddingTop: 20 },
   sectionHeader: { alignItems: 'center', flexDirection: 'row', justifyContent: 'space-between' },
   countText: { fontSize: 14, fontWeight: '800', marginBottom: 10 },
-  historyState: { alignItems: 'center', borderRadius: 8, borderWidth: 1, gap: 8, padding: 16 },
+  historyState: { alignItems: 'center', borderRadius: radius.radiusMd, borderStyle: 'dashed', borderWidth: 1, gap: 8, padding: 16 },
   stateTitle: { fontSize: 16, fontWeight: '800' },
   stateText: { fontSize: 14, lineHeight: 20, textAlign: 'center' },
   errorText: { color: '#d4183d', fontSize: 14, fontWeight: '700' },
-  recordCard: { alignItems: 'center', borderRadius: 8, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 10, padding: 12 },
-  recordAccent: { alignItems: 'center', borderRadius: 8, height: 46, justifyContent: 'center', width: 46 },
+  recordCard: { alignItems: 'center', borderRadius: radius.radiusMd, borderWidth: 1, flexDirection: 'row', gap: 12, marginBottom: 10, padding: 12 },
+  recordAccent: { alignItems: 'center', borderRadius: radius.radiusSm, height: 46, justifyContent: 'center', width: 46 },
   recordAccentText: { color: stemmColors.text, fontSize: 20, fontWeight: '900' },
   recordCopy: { flex: 1 },
   recordTitle: { fontSize: 16, fontWeight: '900' },
   recordMeta: { fontSize: 13, marginTop: 3 },
   scorePill: { alignItems: 'flex-end', minWidth: 58 },
   scoreLabel: { fontSize: 11, fontWeight: '800', textTransform: 'uppercase' },
-  scoreValue: { color: stemmColors.green, fontSize: 18, fontWeight: '900' },
+  scoreValue: { ...typography.heading3, fontFamily: 'Fira Code' },
   modalOverlay: { backgroundColor: 'rgba(52,49,51,0.42)', flex: 1, justifyContent: 'flex-end' },
-  modalPanel: { borderTopLeftRadius: 8, borderTopRightRadius: 8, maxHeight: '82%', padding: 20 },
+  modalPanel: { borderTopLeftRadius: radius.radiusXl, borderTopRightRadius: radius.radiusXl, maxHeight: '82%', padding: 20 },
+  modalHandle: { alignSelf: 'center', backgroundColor: 'rgba(52,49,51,0.2)', borderRadius: radius.radiusFull, height: 4, marginBottom: 16, width: 40 },
   modalHeader: { alignItems: 'flex-start', flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
   modalTitle: { fontSize: 22, fontWeight: '900' },
   modalMeta: { fontSize: 14, marginTop: 4 },

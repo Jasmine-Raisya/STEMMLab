@@ -21,9 +21,9 @@ interface SoundMeterState {
 
 function meteringToDecibels(metering?: number) {
   if (typeof metering !== 'number') return 0;
-  if (metering <= -120) return 30;
-  const normalized = Math.max(0, Math.min(1, (metering + 60) / 60));
-  return Math.max(30, Math.min(110, Math.round(30 + normalized * 80)));
+  if (metering <= -120) return 0;
+  const normalized = Math.max(0, Math.min(1, (metering + 90) / 90));
+  return Math.max(0, Math.min(100, Math.round(normalized * 90)));
 }
 
 export function useSoundMeter(): SoundMeterState {
@@ -37,8 +37,13 @@ export function useSoundMeter(): SoundMeterState {
   const recorderState = useAudioRecorderState(recorder, battery.shouldThrottle ? 1000 : 500);
   const coordinatesRef = useRef<{ latitude: number; longitude: number } | null>(null);
   const lastSampleAtRef = useRef(0);
+  const isStartingRef = useRef(false);
+  const stopRef = useRef<() => Promise<void>>(async () => undefined);
 
   const start = useCallback(async () => {
+    if (isStartingRef.current || recording || recorderState.isRecording || recorder.isRecording) return;
+    isStartingRef.current = true;
+
     try {
       setError(null);
       const permission = await requestRecordingPermissionsAsync();
@@ -56,17 +61,22 @@ export function useSoundMeter(): SoundMeterState {
         shouldRouteThroughEarpiece: false,
       });
       coordinatesRef.current = await getCurrentCoordinates();
-      await recorder.prepareToRecordAsync();
+      if (!recorderState.canRecord) {
+        await recorder.prepareToRecordAsync();
+      }
       recorder.record();
       setRecording(true);
     } catch (startError) {
       setRecording(false);
       setError(startError instanceof Error ? startError.message : 'Unable to start the microphone.');
+    } finally {
+      isStartingRef.current = false;
     }
-  }, [recorder]);
+  }, [recorder, recorderState.canRecord, recorderState.isRecording, recording]);
 
   const stop = useCallback(async () => {
     setRecording(false);
+    setDecibel(0);
     try {
       if (recorder.isRecording) {
         await recorder.stop();
@@ -107,9 +117,13 @@ export function useSoundMeter(): SoundMeterState {
     }
   }, [battery.shouldThrottle, recorderState.isRecording, recorderState.metering, recording]);
 
-  useEffect(() => () => {
-    void stop();
+  useEffect(() => {
+    stopRef.current = stop;
   }, [stop]);
+
+  useEffect(() => () => {
+    void stopRef.current();
+  }, []);
 
   return useMemo(
     () => ({

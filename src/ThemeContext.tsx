@@ -1,42 +1,45 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, ReactNode, useContext, useEffect, useState } from 'react';
+import { brandColors } from './tokens';
 
 type Theme = 'light' | 'dark';
 
 export const lightThemeColors = {
-  background: '#F2E7DF',
-  surface: '#FFF4EE',
-  card: '#FFEBF3',
-  elevated: '#FFF8F3',
-  text: '#343133',
-  heading: '#343133',
-  muted: '#806E63',
-  border: '#D5C8BE',
-  input: '#FFF8F3',
-  softBlue: '#FFEBF3',
-  softGreen: '#CFC46B',
-  accent: '#CFC46B',
-  accentText: '#343133',
-  cta: '#F5674D',
-  ctaText: '#FFFFFF',
+  background: brandColors.cream,
+  surface: brandColors.blush,
+  card: brandColors.blush,
+  elevated: brandColors.lightElevated,
+  text: brandColors.charcoal,
+  heading: brandColors.charcoal,
+  muted: brandColors.muted,
+  border: brandColors.lightBorder,
+  input: brandColors.blush,
+  softBlue: brandColors.blush,
+  softGreen: 'rgba(207,196,107,0.2)',
+  accent: brandColors.oliveGold,
+  accentText: brandColors.charcoal,
+  cta: brandColors.coral,
+  ctaText: brandColors.white,
+  danger: brandColors.danger,
 };
 
 export const darkThemeColors = {
-  background: '#343133',
-  surface: '#433D3B',
-  card: '#4D4643',
-  elevated: '#5A514D',
-  text: '#FFF8F3',
-  heading: '#FFEBF3',
-  muted: '#E0D1C7',
-  border: '#756A64',
-  input: '#433D3B',
+  background: brandColors.charcoal,
+  surface: brandColors.darkSurface,
+  card: brandColors.darkCard,
+  elevated: brandColors.darkElevated,
+  text: '#FFFFFF',
+  heading: brandColors.blush,
+  muted: brandColors.darkMuted,
+  border: brandColors.darkBorder,
+  input: '#2A2728',
   softBlue: 'rgba(255,235,243,0.14)',
   softGreen: 'rgba(207,196,107,0.24)',
-  accent: '#CFC46B',
-  accentText: '#343133',
-  cta: '#F5674D',
-  ctaText: '#FFFFFF',
+  accent: brandColors.oliveGold,
+  accentText: brandColors.charcoal,
+  cta: brandColors.coral,
+  ctaText: brandColors.white,
+  danger: brandColors.danger,
 };
 
 export type ThemeColors = typeof lightThemeColors;

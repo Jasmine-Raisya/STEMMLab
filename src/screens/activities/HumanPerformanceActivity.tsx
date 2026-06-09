@@ -65,7 +65,7 @@ function scoreSamples(samples: SensorSample[]) {
 function resultReflectionFields(results: MovementResult[]) {
   if (results.length === 0) return ['Which movement felt hardest to control, and why?'];
   return results.map((result) => (
-    `For ${result.name}, explain what the vibration score (${result.score}/100), average vibration (${result.average.toFixed(2)}), and max vibration (${result.max.toFixed(2)}) show about movement control.`
+    `For ${result.name}, explain what the rotation control score (${result.score}/100), average rotation (${result.average.toFixed(2)}), and max rotation (${result.max.toFixed(2)}) show about movement control.`
   ));
 }
 
@@ -174,14 +174,26 @@ export function HumanPerformanceActivity({ onBack }: Props) {
       setPhase('summary');
       return;
     }
-    setPhase(movementIndex === 0 ? 'overview' : 'guide');
+    if (phase === 'prep' || phase === 'measure') {
+      samplesRef.current = [];
+      setPrepLeft(5);
+      setMeasureLeft(30);
+      setPhase('guide');
+      return;
+    }
+    if (phase === 'guide' && movementIndex > 0) {
+      setMovementIndex((index) => Math.max(0, index - 1));
+      setPhase('guide');
+      return;
+    }
+    setPhase('overview');
   };
 
   const instructions = [
     'Secure the phone before each movement.',
     'Study the movement image first.',
     'Use the 5-second break to get ready.',
-    'Move for the full 30 seconds while vibration is measured.',
+    'Move for the full 30 seconds while rotational movement is measured with the gyroscope.',
   ];
 
   return (
@@ -230,13 +242,13 @@ export function HumanPerformanceActivity({ onBack }: Props) {
       {phase === 'measure' && (
         <View style={[styles.pad, styles.flex, { backgroundColor: colors.background }]}>
           <Text style={[styles.heading, { color: colors.heading }]}>{activeMovement.name}</Text>
-          <Text style={[styles.body, { color: colors.text }]}>Move now. Vibration is being measured.</Text>
+          <Text style={[styles.body, { color: colors.text }]}>Move now. Rotation is being measured with the gyroscope.</Text>
           <View style={styles.center}>
             <Text style={[styles.countdown, { color: colors.cta }]}>{measureLeft}</Text>
             <Text style={[styles.body, { color: colors.muted }]}>seconds</Text>
           </View>
           <BatteryWarning />
-          <SensorLineChart samples={stream.samples} label="Movement vibration" color={stemmColors.green} />
+          <SensorLineChart samples={stream.samples} label="Gyroscope rotation" color={stemmColors.green} />
           <TouchableOpacity style={[styles.skipButton, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={skipMovement}>
             <Text style={[styles.skipButtonText, { color: colors.heading }]}>Skip Movement</Text>
           </TouchableOpacity>
@@ -251,7 +263,7 @@ export function HumanPerformanceActivity({ onBack }: Props) {
               <Text style={[styles.rank, { color: colors.heading }]}>#{index + 1}</Text>
               <View style={styles.flex}>
                 <Text style={[styles.cardTitle, { color: colors.text }]}>{result.name}</Text>
-                <Text style={[styles.muted, { color: colors.muted }]}>Avg {result.average.toFixed(2)} | Max {result.max.toFixed(2)}</Text>
+                <Text style={[styles.muted, { color: colors.muted }]}>Avg rotation {result.average.toFixed(2)} | Max rotation {result.max.toFixed(2)}</Text>
               </View>
               <Text style={styles.statValue}>{result.score}</Text>
             </View>

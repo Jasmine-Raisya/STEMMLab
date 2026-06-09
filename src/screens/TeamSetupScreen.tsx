@@ -3,6 +3,8 @@ import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 
 import { useTranslation } from 'react-i18next';
 import { useTeam } from '../services/teamContext';
 import { getFirebaseAuthMessage } from '../services/authService';
+import { useThemeColors } from '../ThemeContext';
+import { brandColors, radius, typography } from '../tokens';
 
 interface Props {
   onRegistered: () => void;
@@ -13,6 +15,7 @@ type AuthMode = 'register' | 'signIn';
 
 export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
   const { registerTeam, signInTeam } = useTeam();
   const [mode, setMode] = useState<AuthMode>('register');
   const [representativeEmail, setRepresentativeEmail] = useState('');
@@ -108,31 +111,33 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>{t('onboarding.teamSetup')}</Text>
-        <Text style={styles.subtitle}>{mode === 'register' ? t('onboarding.createProfile') : t('onboarding.signInProfile')}</Text>
+        <Text style={[styles.title, { color: colors.heading }]}>{t('onboarding.teamSetup')}</Text>
+        <Text style={[styles.subtitle, { color: colors.muted }]}>{mode === 'register' ? t('onboarding.createProfile') : t('onboarding.signInProfile')}</Text>
       </View>
 
       <View style={styles.modeRow}>
         <TouchableOpacity
+          accessibilityLabel={t('common.createTeamAccount')}
           accessibilityRole="button"
           onPress={() => switchMode('register')}
-          style={[styles.modeButton, mode === 'register' && styles.modeButtonActive]}
+          style={[styles.modeButton, { backgroundColor: mode === 'register' ? colors.accent : 'transparent', borderColor: mode === 'register' ? colors.accent : colors.border }]}
         >
-          <Text style={[styles.modeText, mode === 'register' && styles.modeTextActive]}>{t('common.createTeamAccount')}</Text>
+          <Text style={[styles.modeText, { color: mode === 'register' ? colors.accentText : colors.text }]}>{t('common.createTeamAccount')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          accessibilityLabel={t('common.signIn')}
           accessibilityRole="button"
           onPress={() => switchMode('signIn')}
-          style={[styles.modeButton, mode === 'signIn' && styles.modeButtonActive]}
+          style={[styles.modeButton, { backgroundColor: mode === 'signIn' ? colors.accent : 'transparent', borderColor: mode === 'signIn' ? colors.accent : colors.border }]}
         >
-          <Text style={[styles.modeText, mode === 'signIn' && styles.modeTextActive]}>{t('common.signIn')}</Text>
+          <Text style={[styles.modeText, { color: mode === 'signIn' ? colors.accentText : colors.text }]}>{t('common.signIn')}</Text>
         </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.form} showsVerticalScrollIndicator={false}>
-        <Text style={styles.label}>{t('common.representativeEmail')}</Text>
+        <Text style={[styles.label, { color: colors.heading }]}>{t('common.representativeEmail')}</Text>
         <TextInput
           autoCapitalize="none"
           keyboardType="email-address"
@@ -141,11 +146,12 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
             setRepresentativeEmail(value);
           }}
           placeholder={t('common.emailPlaceholder')}
-          style={styles.input}
+          placeholderTextColor={colors.muted}
+          style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
           value={representativeEmail}
         />
 
-        <Text style={styles.label}>{t('common.password')}</Text>
+        <Text style={[styles.label, { color: colors.heading }]}>{t('common.password')}</Text>
         <TextInput
           autoCapitalize="none"
           onChangeText={(value) => {
@@ -153,73 +159,79 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
             setPassword(value);
           }}
           placeholder={t('common.passwordPlaceholder')}
+          placeholderTextColor={colors.muted}
           secureTextEntry
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
           value={password}
         />
 
         {mode === 'register' && (
           <>
-            <Text style={styles.label}>{t('common.teamName')}</Text>
+            <Text style={[styles.label, { color: colors.heading }]}>{t('common.teamName')}</Text>
             <TextInput
               onChangeText={(value) => {
                 setError('');
                 setTeamName(value);
               }}
               placeholder={t('common.teamName')}
-              style={styles.input}
+              placeholderTextColor={colors.muted}
+              style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
               value={teamName}
             />
 
             <View style={styles.rowHeader}>
-              <Text style={styles.label}>{t('common.teamMembers')}</Text>
-              <TouchableOpacity accessibilityRole="button" onPress={addMember} style={styles.addButton}>
+              <Text style={[styles.label, { color: colors.heading }]}>{t('common.teamMembers')}</Text>
+              <TouchableOpacity accessibilityLabel={t('common.addMember')} accessibilityRole="button" onPress={addMember} style={[styles.addButton, { borderColor: colors.cta }]}>
                 <Text style={styles.addIcon}>+</Text>
                 <Text style={styles.addText}>{t('common.addMember')}</Text>
               </TouchableOpacity>
             </View>
             {members.map((member, index) => (
               <View key={index} style={styles.memberBlock}>
-                <Text style={styles.memberLabel}>{t('common.memberFirstName', { number: index + 1 })}</Text>
+                <Text style={[styles.memberLabel, { color: colors.muted }]}>{t('common.memberFirstName', { number: index + 1 })}</Text>
                 <View style={styles.memberRow}>
                   <TextInput
                     autoCapitalize="words"
                     onChangeText={(value) => updateMember(index, value)}
                     placeholder={t('common.firstNamePlaceholder')}
+                    placeholderTextColor={colors.muted}
                     returnKeyType="next"
-                    style={[styles.input, styles.memberInput]}
+                    style={[styles.input, styles.memberInput, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
                     value={member}
                   />
-                  <TouchableOpacity accessibilityRole="button" onPress={() => removeMember(index)} style={styles.removeButton}>
+                  <TouchableOpacity accessibilityLabel="Remove member" accessibilityRole="button" onPress={() => removeMember(index)} style={[styles.removeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                     <Text style={styles.removeIcon}>x</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             ))}
             {validMembers.length > 0 && (
-              <View style={styles.previewCard}>
+              <View style={[styles.previewCard, { backgroundColor: colors.softGreen, borderColor: colors.accent }]}>
                 <Text style={styles.previewTitle}>{t('common.registeredMembers')}</Text>
                 {validMembers.map((member, index) => (
-                  <Text key={`${member}-${index}`} style={styles.previewText}>{index + 1}. {member}</Text>
+                  <Text key={`${member}-${index}`} style={[styles.previewText, { color: colors.text }]}>{index + 1}. {member}</Text>
                 ))}
               </View>
             )}
 
-            <Text style={[styles.label, { marginTop: 16 }]}>{t('common.yearLevel')}</Text>
+            <Text style={[styles.label, { color: colors.heading, marginTop: 16 }]}>{t('common.yearLevel')}</Text>
             <View style={styles.gradeRow}>
               {grades.map((grade) => (
-                <TouchableOpacity key={grade} onPress={() => { setError(''); setGradeLevel(grade); }} style={[styles.gradeButton, gradeLevel === grade && styles.gradeSelected]}>
-                  <Text style={[styles.gradeText, gradeLevel === grade && styles.gradeSelectedText]}>{t('common.year', { year: grade })}</Text>
+                <TouchableOpacity accessibilityLabel={t('common.year', { year: grade })} accessibilityRole="button" key={grade} onPress={() => { setError(''); setGradeLevel(grade); }} style={[styles.gradeButton, { backgroundColor: gradeLevel === grade ? colors.accent : colors.surface, borderColor: gradeLevel === grade ? colors.accent : colors.border }]}>
+                  <Text style={[styles.gradeText, { color: gradeLevel === grade ? colors.accentText : colors.text }]}>{t('common.year', { year: grade })}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           </>
         )}
-        {error.length > 0 && <Text style={styles.error}>{error}</Text>}
+        {error.length > 0 && (
+          <View style={[styles.errorBanner, { backgroundColor: colors.surface, borderLeftColor: colors.cta }]}>
+            <Text style={styles.error}>{error}</Text>
+          </View>
+        )}
       </ScrollView>
 
-      {error.length > 0 && <Text style={styles.footerError}>{error}</Text>}
-      <TouchableOpacity style={[styles.btn, (!isValid || isSubmitting) && styles.btnDisabled]} onPress={handleContinue} activeOpacity={0.85}>
+      <TouchableOpacity accessibilityLabel={t(mode === 'signIn' ? 'common.signIn' : 'common.createTeamAccount')} accessibilityRole="button" style={[styles.btn, (!isValid || isSubmitting) && styles.btnDisabled]} onPress={handleContinue} activeOpacity={0.85}>
         <Text style={styles.btnText}>
           {isSubmitting
             ? t(mode === 'signIn' ? 'common.signingIn' : 'common.registering')
@@ -231,39 +243,35 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingHorizontal: 24, paddingTop: 48, backgroundColor: '#fff' },
+  container: { flex: 1, paddingHorizontal: 24, paddingTop: 48 },
   header: { marginBottom: 24 },
-  title: { fontSize: 28, fontWeight: '800', color: '#2F3E46', marginBottom: 4 },
-  subtitle: { fontSize: 16, color: '#7A8A99' },
+  title: { ...typography.heading2, marginBottom: 4 },
+  subtitle: { ...typography.body },
   modeRow: { flexDirection: 'row', gap: 8, marginBottom: 18 },
-  modeButton: { alignItems: 'center', borderColor: '#d1d5db', borderRadius: 14, borderWidth: 1, flex: 1, paddingHorizontal: 10, paddingVertical: 12 },
-  modeButtonActive: { backgroundColor: '#0074D9', borderColor: '#0074D9' },
-  modeText: { color: '#2F3E46', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  modeTextActive: { color: '#fff' },
+  modeButton: { alignItems: 'center', borderRadius: radius.radiusMd, borderWidth: 1, flex: 1, minHeight: 48, justifyContent: 'center', paddingHorizontal: 10, paddingVertical: 12 },
+  modeText: { fontSize: 14, fontWeight: '800', textAlign: 'center' },
   form: { flex: 1 },
-  label: { fontSize: 16, color: '#2F3E46', fontWeight: '800', marginBottom: 6 },
-  input: { borderWidth: 2, borderColor: '#e5e7eb', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 12, backgroundColor: '#f9fafb', color: '#2F3E46', marginBottom: 12, fontSize: 16 },
+  label: { ...typography.caption, fontWeight: '800', marginBottom: 6 },
+  input: { ...typography.body, borderWidth: 1, borderRadius: radius.radiusMd, marginBottom: 12, paddingHorizontal: 14, paddingVertical: 12 },
   rowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
-  addButton: { alignItems: 'center', borderColor: '#0074D9', borderRadius: 12, borderWidth: 1, flexDirection: 'row', gap: 6, paddingHorizontal: 10, paddingVertical: 8 },
-  addIcon: { fontSize: 22, color: '#0074D9', fontWeight: '900' },
-  addText: { color: '#0074D9', fontSize: 13, fontWeight: '800' },
+  addButton: { alignItems: 'center', borderRadius: radius.radiusMd, borderWidth: 1, flexDirection: 'row', gap: 6, minHeight: 48, paddingHorizontal: 10, paddingVertical: 8 },
+  addIcon: { fontSize: 22, color: brandColors.coral, fontWeight: '900' },
+  addText: { color: brandColors.coral, fontSize: 13, fontWeight: '800' },
   memberBlock: { marginBottom: 10 },
-  memberLabel: { color: '#4B5B66', fontSize: 13, fontWeight: '800', marginBottom: 4 },
+  memberLabel: { ...typography.caption, fontWeight: '800', marginBottom: 4 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   memberInput: { flex: 1, marginBottom: 0 },
-  removeButton: { alignItems: 'center', borderColor: '#F3B8C3', borderRadius: 12, borderWidth: 1, height: 46, justifyContent: 'center', width: 46 },
-  removeIcon: { fontSize: 18, color: '#d4183d', fontWeight: '900' },
-  previewCard: { backgroundColor: '#E8F5E9', borderColor: '#4CAF50', borderRadius: 14, borderWidth: 1, marginBottom: 10, padding: 12 },
-  previewTitle: { color: '#1D6B35', fontSize: 14, fontWeight: '900', marginBottom: 4 },
-  previewText: { color: '#2F3E46', fontSize: 14, fontWeight: '700', lineHeight: 20 },
+  removeButton: { alignItems: 'center', borderRadius: radius.radiusFull, borderWidth: 1, height: 48, justifyContent: 'center', width: 48 },
+  removeIcon: { fontSize: 18, color: brandColors.coral, fontWeight: '900' },
+  previewCard: { borderLeftWidth: 4, borderRadius: radius.radiusMd, marginBottom: 10, padding: 12 },
+  previewTitle: { color: brandColors.charcoal, fontSize: 14, fontWeight: '900', marginBottom: 4 },
+  previewText: { fontSize: 14, fontWeight: '700', lineHeight: 20 },
   gradeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  gradeButton: { borderColor: '#e5e7eb', borderRadius: 12, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  gradeSelected: { backgroundColor: '#0074D9', borderColor: '#0074D9' },
-  gradeText: { color: '#2F3E46', fontWeight: '800' },
-  gradeSelectedText: { color: '#fff' },
-  error: { color: '#d4183d', fontSize: 14, marginTop: 4 },
-  footerError: { color: '#d4183d', fontSize: 14, fontWeight: '700', marginBottom: 8, textAlign: 'center' },
-  btn: { paddingVertical: 16, borderRadius: 14, backgroundColor: '#0074D9', alignItems: 'center', marginBottom: 24 },
+  gradeButton: { borderRadius: radius.radiusMd, borderWidth: 1, minHeight: 48, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 10 },
+  gradeText: { fontWeight: '800' },
+  errorBanner: { borderLeftWidth: 4, borderRadius: radius.radiusMd, marginBottom: 12, padding: 12 },
+  error: { color: brandColors.coral, fontSize: 14, fontWeight: '800' },
+  btn: { alignItems: 'center', backgroundColor: brandColors.coral, borderRadius: radius.radiusMd, justifyContent: 'center', marginBottom: 24, minHeight: 56, paddingVertical: 16 },
   btnDisabled: { opacity: 0.5 },
-  btnText: { color: '#fff', fontSize: 17, fontWeight: '800' },
+  btnText: { color: '#fff', fontSize: 17, fontWeight: '900' },
 });

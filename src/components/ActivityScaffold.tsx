@@ -1,17 +1,19 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { useThemeColors } from '../ThemeContext';
+import { useButtonPress } from '../hooks/useButtonPress';
+import { brandColors, radius, shadow, typography } from '../tokens';
 
 export const stemmColors = {
-  blue: '#343133',
-  blueSoft: '#FFEBF3',
-  green: '#CFC46B',
+  blue: brandColors.charcoal,
+  blueSoft: brandColors.blush,
+  green: brandColors.oliveGold,
   greenSoft: '#F6F1CC',
-  orange: '#F5674D',
-  text: '#343133',
-  muted: '#806E63',
-  border: '#D5C8BE',
+  orange: brandColors.coral,
+  text: brandColors.charcoal,
+  muted: brandColors.muted,
+  border: brandColors.lightBorder,
   surface: '#FFF4EE',
   white: '#FFF8F3',
 };
@@ -27,23 +29,47 @@ interface ActivityHeaderProps {
 export function ActivityHeader({ title, step, total, color, onBack }: ActivityHeaderProps) {
   const { t } = useTranslation();
   const colors = useThemeColors();
+  const backPress = useButtonPress();
 
   return (
     <View style={[headerStyles.row, { backgroundColor: colors.elevated, borderBottomColor: colors.border }]}>
-      <TouchableOpacity accessibilityRole="button" onPress={onBack} style={[headerStyles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[headerStyles.backIcon, { color: colors.text }]}>{'<'}</Text>
-      </TouchableOpacity>
+      <Animated.View style={{ transform: [{ scale: backPress.scale }] }}>
+        <TouchableOpacity
+          accessibilityLabel="Go back"
+          accessibilityRole="button"
+          onPress={onBack}
+          onPressIn={backPress.handlePressIn}
+          onPressOut={backPress.handlePressOut}
+          style={[headerStyles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+        >
+          <Text style={[headerStyles.backIcon, { color: colors.text }]}>{'‹'}</Text>
+        </TouchableOpacity>
+      </Animated.View>
       <View style={headerStyles.copy}>
         <Text style={[headerStyles.title, { color: colors.heading }]}>{title}</Text>
         <Text style={[headerStyles.step, { color: colors.muted }]}>{t('common.step', { step, total })}</Text>
       </View>
       <View style={headerStyles.dots}>
         {Array.from({ length: total }).map((_, index) => (
-          <View key={index} style={[headerStyles.dot, { backgroundColor: index + 1 === step ? color : colors.border }]} />
+          <ProgressDot active={index + 1 === step} color={color} inactiveColor={colors.border} key={index} />
         ))}
       </View>
     </View>
   );
+}
+
+function ProgressDot({ active, color, inactiveColor }: { active: boolean; color: string; inactiveColor: string }) {
+  const width = useRef(new Animated.Value(active ? 24 : 10)).current;
+
+  useEffect(() => {
+    Animated.timing(width, {
+      toValue: active ? 24 : 10,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [active, width]);
+
+  return <Animated.View style={[headerStyles.dot, { backgroundColor: active ? color : inactiveColor, width }]} />;
 }
 
 export function BulletList({ items }: { items: string[] }) {
@@ -69,19 +95,20 @@ const headerStyles = StyleSheet.create({
     gap: 12,
     paddingHorizontal: 20,
     paddingVertical: 16,
+    ...shadow,
   },
   backButton: {
     alignItems: 'center',
-    borderRadius: 14,
+    borderRadius: radius.radiusMd,
     borderWidth: 1,
-    height: 44,
+    height: 48,
     justifyContent: 'center',
-    width: 44,
+    width: 48,
   },
-  backIcon: { fontSize: 30, fontWeight: '700', lineHeight: 34 },
+  backIcon: { fontSize: 34, fontWeight: '700', lineHeight: 38 },
   copy: { flex: 1 },
-  title: { fontSize: 20, fontWeight: '800' },
-  step: { fontSize: 16, marginTop: 2 },
+  title: { ...typography.heading3 },
+  step: { ...typography.caption, marginTop: 2 },
   dots: { flexDirection: 'row', gap: 5 },
   dot: { borderRadius: 5, height: 10, width: 10 },
 });
@@ -90,11 +117,11 @@ const listStyles = StyleSheet.create({
   wrap: { gap: 10 },
   row: { alignItems: 'flex-start', flexDirection: 'row', gap: 10 },
   bullet: {
-    backgroundColor: stemmColors.green,
+    backgroundColor: brandColors.oliveGold,
     borderRadius: 5,
     height: 10,
     marginTop: 7,
     width: 10,
   },
-  text: { flex: 1, fontSize: 16, lineHeight: 23 },
+  text: { ...typography.body, flex: 1, lineHeight: 23 },
 });

@@ -8,6 +8,7 @@ import { ActivityHeader, BulletList, stemmColors } from '../../components/Activi
 import { SpeechButton } from '../../components/SpeechButton';
 import { ReflectionForm } from '../../components/ReflectionForm';
 import { useTeam } from '../../services/teamContext';
+import { useThemeColors } from '../../ThemeContext';
 
 interface Props { onBack: () => void; }
 
@@ -39,6 +40,55 @@ function parsePositive(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
 }
 
+function predictGForceEffect(gForce: number) {
+  if (gForce <= 0) {
+    return {
+      range: '-',
+      examples: 'Enter the drop data to calculate G-force.',
+      effect: 'Prediction appears after the experiment result is input.',
+      bounce: 'Unknown',
+    };
+  }
+  if (gForce <= 5) {
+    return {
+      range: '1-5 G',
+      examples: 'Standing up quickly, elevators, amusement rides',
+      effect: 'No injury',
+      bounce: 'No bounce expected',
+    };
+  }
+  if (gForce <= 10) {
+    return {
+      range: '5-10 G',
+      examples: 'Hard falls while running, minor car braking',
+      effect: 'Possible bruising or strains',
+      bounce: 'Small bounce possible',
+    };
+  }
+  if (gForce <= 30) {
+    return {
+      range: '10-30 G',
+      examples: 'Sports collisions, bicycle crashes, car crashes with seatbelts',
+      effect: 'Serious injuries possible, such as broken bones or concussion',
+      bounce: 'Bounce likely from a hard impact',
+    };
+  }
+  if (gForce <= 50) {
+    return {
+      range: '30-50 G',
+      examples: 'Severe car crashes, falls onto hard surfaces',
+      effect: 'High risk of severe injury',
+      bounce: 'Strong bounce or rebound likely',
+    };
+  }
+  return {
+    range: '50+ G',
+    examples: 'Very sudden stops with no cushioning',
+    effect: 'Life-threatening injuries likely',
+    bounce: 'Violent bounce/rebound likely',
+  };
+}
+
 function buildIteration(measurement: MeasurementInput, attempt: number): Iteration | null {
   const height = parsePositive(measurement.dropHeight);
   const time = parsePositive(measurement.measuredTime);
@@ -60,6 +110,7 @@ function buildIteration(measurement: MeasurementInput, attempt: number): Iterati
 
 function OverviewScreen({ onNext, iterations }: { onNext: () => void; iterations: Iteration[] }) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
   const equipment = translatedArray(t('parachute.equipment', { returnObjects: true }));
   const instructions = translatedArray(t('parachute.instructions', { returnObjects: true }));
   const ttsText = [
@@ -69,10 +120,10 @@ function OverviewScreen({ onNext, iterations }: { onNext: () => void; iterations
   ];
 
   return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('parachute.overview')}</Text>
+    <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.heading, { color: colors.heading }]}>{t('parachute.overview')}</Text>
       <SpeechButton text={ttsText} style={styles.speech} />
-      <Image source={instructionImage} resizeMode="contain" style={styles.diagramImage} />
+      <Image source={instructionImage} resizeMode="contain" style={[styles.diagramImage, { backgroundColor: colors.elevated, borderColor: colors.border }]} />
 
       {iterations.length > 0 && (
         <View style={styles.notice}>
@@ -81,30 +132,30 @@ function OverviewScreen({ onNext, iterations }: { onNext: () => void; iterations
         </View>
       )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('parachute.objectiveTitle')}</Text>
-        <Text style={styles.body}>{t('parachute.objective')}</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.heading }]}>{t('parachute.objectiveTitle')}</Text>
+        <Text style={[styles.body, { color: colors.text }]}>{t('parachute.objective')}</Text>
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('parachute.equipmentTitle')}</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.heading }]}>{t('parachute.equipmentTitle')}</Text>
         <BulletList items={equipment} />
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('parachute.instructionsTitle')}</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.heading }]}>{t('parachute.instructionsTitle')}</Text>
         <BulletList items={instructions} />
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Required iterations</Text>
-        <Text style={[styles.body, { marginBottom: 10 }]}>Repeat the drop 3 times so the comparison is fair:</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.heading }]}>Required iterations</Text>
+        <Text style={[styles.body, { color: colors.text, marginBottom: 10 }]}>Repeat the drop 3 times so the comparison is fair:</Text>
         <BulletList items={requiredIterations} />
       </View>
 
-      <View style={styles.scienceBox}>
-        <Text style={styles.sectionTitle}>{t('parachute.discussionTitle')}</Text>
-        <Text style={styles.body}>{t('parachute.discussion')}</Text>
+      <View style={[styles.scienceBox, { backgroundColor: colors.softGreen, borderColor: colors.accent }]}>
+        <Text style={[styles.sectionTitle, { color: colors.heading }]}>{t('parachute.discussionTitle')}</Text>
+        <Text style={[styles.body, { color: colors.text }]}>{t('parachute.discussion')}</Text>
       </View>
 
       <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
@@ -126,53 +177,57 @@ function TimerScreen({
   onNext: () => void;
 }) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
   const hasValidMeasurement = Boolean(buildIteration(measurement, 1));
 
   return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('parachute.timer')}</Text>
+    <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.timerScrollContent}>
+      <Text style={[styles.heading, { color: colors.heading }]}>{t('parachute.timer')}</Text>
       <SpeechButton text={t('parachute.timerInstruction')} style={styles.speech} />
-      <View style={styles.centerStage}>
-        <Text style={styles.body}>{t('parachute.timerInstruction')}</Text>
-        <Text style={[styles.body, styles.measurementHint]}>{t('parachute.measurementHint')}</Text>
-        <Text style={[styles.body, styles.measurementHint]}>
+      <View style={styles.timerForm}>
+        <Text style={[styles.body, { color: colors.text }]}>{t('parachute.timerInstruction')}</Text>
+        <Text style={[styles.body, styles.measurementHint, { color: colors.text }]}>{t('parachute.measurementHint')}</Text>
+        <Text style={[styles.body, styles.measurementHint, { color: colors.text }]}>
           Step 1: measure the drop height. Step 2: drop the toy without throwing it and record the time until it first hits the ground.
         </Text>
         <View style={[styles.inputGroup, { width: '100%', marginTop: 18 }]}>
-          <Text style={styles.label}>Iteration name</Text>
+          <Text style={[styles.label, { color: colors.heading }]}>Iteration name</Text>
           <TextInput
             onChangeText={(iterationName) => onChange({ ...measurement, iterationName })}
             placeholder={`Iteration ${measurement.iterationName || ''}`.trim()}
-            style={styles.input}
+            placeholderTextColor={colors.muted}
+            style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
             value={measurement.iterationName}
           />
         </View>
         <View style={styles.buttonRow}>
           <View style={[styles.inputGroup, styles.flex]}>
-            <Text style={styles.label}>{t('parachute.dropHeight')}</Text>
+            <Text style={[styles.label, { color: colors.heading }]}>{t('parachute.dropHeight')}</Text>
             <TextInput
               keyboardType="decimal-pad"
               onChangeText={(dropHeight) => onChange({ ...measurement, dropHeight })}
               placeholder="1.5"
-              style={styles.input}
+              placeholderTextColor={colors.muted}
+              style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
               value={measurement.dropHeight}
             />
           </View>
           <View style={[styles.inputGroup, styles.flex]}>
-            <Text style={styles.label}>{t('parachute.measuredTime')}</Text>
+            <Text style={[styles.label, { color: colors.heading }]}>{t('parachute.measuredTime')}</Text>
             <TextInput
               keyboardType="decimal-pad"
               onChangeText={(measuredTime) => onChange({ ...measurement, measuredTime })}
               placeholder="2.8"
-              style={styles.input}
+              placeholderTextColor={colors.muted}
+              style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
               value={measurement.measuredTime}
             />
           </View>
         </View>
         {!hasValidMeasurement && <Text style={styles.errorText}>{t('parachute.enterMeasurement')}</Text>}
       </View>
-      <TouchableOpacity disabled={!hasValidMeasurement} style={[styles.outlineButton, !hasValidMeasurement && styles.disabled]} onPress={onNext}>
-        <Text style={styles.outlineButtonText}>{t('common.nextStep')}</Text>
+      <TouchableOpacity disabled={!hasValidMeasurement} style={[styles.outlineButton, { borderColor: colors.border }, !hasValidMeasurement && styles.disabled]} onPress={onNext}>
+        <Text style={[styles.outlineButtonText, { color: colors.text }]}>{t('common.nextStep')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -180,6 +235,8 @@ function TimerScreen({
 
 function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
+  const darkButtonBorder = colors.background === '#343133' ? { borderColor: colors.muted, borderWidth: 2 } : null;
   const scrubStartX = useRef(0);
   const [videoUri, setVideoUri] = useState('');
   const [durationMillis, setDurationMillis] = useState(0);
@@ -212,7 +269,7 @@ function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
 
   useEffect(() => {
     if (!videoUri) {
-      player.replace(null);
+      void player.replaceAsync(null);
       return;
     }
     void player.replaceAsync({ uri: videoUri });
@@ -268,8 +325,8 @@ function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
   };
 
   return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('parachute.video')}</Text>
+    <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.heading, { color: colors.heading }]}>{t('parachute.video')}</Text>
       <SpeechButton text={t('parachute.videoInstruction')} style={styles.speech} />
       <View>
         {videoUri ? (
@@ -280,27 +337,27 @@ function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
             style={styles.videoPlayer}
           />
         ) : (
-          <View style={styles.videoUploadCard}>
-            <Text style={styles.uploadIcon}>+</Text>
-            <Text style={styles.uploadTitle}>{t('parachute.uploadVideo')}</Text>
-            <Text style={styles.uploadSub}>{t('parachute.uploadVideoSub')}</Text>
-            <TouchableOpacity accessibilityRole="button" onPress={pickVideo} style={[styles.primaryButton, { marginTop: 14, width: '100%' }]}>
+          <View style={[styles.videoUploadCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            <Text style={[styles.uploadIcon, { color: colors.heading }]}>+</Text>
+            <Text style={[styles.uploadTitle, { color: colors.heading }]}>{t('parachute.uploadVideo')}</Text>
+            <Text style={[styles.uploadSub, { color: colors.muted }]}>{t('parachute.uploadVideoSub')}</Text>
+            <TouchableOpacity accessibilityRole="button" onPress={pickVideo} style={[styles.primaryButton, darkButtonBorder, { marginTop: 14, width: '100%' }]}>
               <Text style={styles.primaryButtonText}>{t('parachute.chooseVideo')}</Text>
             </TouchableOpacity>
           </View>
         )}
-        <Text style={[styles.body, { marginBottom: 14 }]}>{t('parachute.videoInstruction')}</Text>
+        <Text style={[styles.body, { color: colors.text, marginBottom: 14 }]}>{t('parachute.videoInstruction')}</Text>
         <View style={styles.speedRow}>
           {[0.25, 0.5, 1].map((rate) => (
             <TouchableOpacity key={rate} style={[styles.speedButton, playbackRate === rate && styles.speedButtonActive]} onPress={() => setPlaybackRate(rate)}>
-              <Text style={[styles.speedText, playbackRate === rate && styles.speedTextActive]}>{rate}x</Text>
+              <Text style={[styles.speedText, { color: playbackRate === rate ? '#fff' : colors.text }, playbackRate === rate && styles.speedTextActive]}>{rate}x</Text>
             </TouchableOpacity>
           ))}
         </View>
         <View style={styles.timelineLabels}>
-          <Text style={styles.muted}>{formatTime(positionMillis)}</Text>
-          <Text style={styles.muted}>{impactMillis === null ? t('parachute.noImpactMarked') : t('parachute.impactAt', { time: formatTime(impactMillis) })}</Text>
-          <Text style={styles.muted}>{formatTime(durationMillis)}</Text>
+          <Text style={[styles.muted, { color: colors.muted }]}>{formatTime(positionMillis)}</Text>
+          <Text style={[styles.muted, { color: colors.muted }]}>{impactMillis === null ? t('parachute.noImpactMarked') : t('parachute.impactAt', { time: formatTime(impactMillis) })}</Text>
+          <Text style={[styles.muted, { color: colors.muted }]}>{formatTime(durationMillis)}</Text>
         </View>
         <View style={[styles.trackBg, !videoUri && styles.disabledTrack]} onLayout={handleTrackLayout} {...scrubber.panHandlers}>
           <View style={[styles.trackFill, { width: `${progress}%` }]} />
@@ -308,16 +365,16 @@ function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
           {videoUri && <View style={[styles.scrubHandle, { left: `${progress}%` }]} />}
         </View>
         {videoUri && (
-          <TouchableOpacity style={[styles.outlineButton, { marginTop: 16 }]} onPress={pickVideo}>
-            <Text style={styles.outlineButtonText}>{t('parachute.replaceVideo')}</Text>
+          <TouchableOpacity style={[styles.outlineButton, { borderColor: colors.border, marginTop: 16 }]} onPress={pickVideo}>
+            <Text style={[styles.outlineButtonText, { color: colors.text }]}>{t('parachute.replaceVideo')}</Text>
           </TouchableOpacity>
         )}
-        <TouchableOpacity disabled={!videoUri} style={[styles.primaryButton, { marginTop: 8 }, !videoUri && styles.disabled]} onPress={() => setImpactMillis(positionMillis)}>
+        <TouchableOpacity disabled={!videoUri} style={[styles.primaryButton, darkButtonBorder, { marginTop: 8 }, !videoUri && styles.disabled]} onPress={() => setImpactMillis(positionMillis)}>
           <Text style={styles.primaryButtonText}>{t('parachute.markImpact')}</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={styles.outlineButton} onPress={onNext}>
-        <Text style={styles.outlineButtonText}>{t('common.nextStep')}</Text>
+      <TouchableOpacity style={[styles.outlineButton, { borderColor: colors.border }]} onPress={onNext}>
+        <Text style={[styles.outlineButtonText, { color: colors.text }]}>{t('common.nextStep')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -325,6 +382,8 @@ function VideoAnalysisScreen({ onNext }: { onNext: () => void }) {
 
 function PhysicsCalculatorScreen({ iteration, onNext }: { iteration: Iteration | null; onNext: () => void }) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
+  const prediction = predictGForceEffect(iteration?.gForce ?? 0);
   const results = [
     { label: t('data.time'), value: iteration ? `${iteration.time}s` : '-' },
     { label: t('parachute.dropHeight'), value: iteration ? `${iteration.height}m` : '-' },
@@ -334,17 +393,25 @@ function PhysicsCalculatorScreen({ iteration, onNext }: { iteration: Iteration |
   ];
 
   return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('parachute.results')}</Text>
+    <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.heading, { color: colors.heading }]}>{t('parachute.results')}</Text>
       {results.map((result) => (
-        <View key={result.label} style={styles.resultCard}>
-          <Text style={styles.resultLabel}>{result.label}</Text>
+        <View key={result.label} style={[styles.resultCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.resultLabel, { color: colors.text }]}>{result.label}</Text>
           <Text style={styles.resultValue}>{result.value}</Text>
         </View>
       ))}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>{t('parachute.formulaUsed')}</Text>
-        <Text style={styles.formula}>{'v = d / t\na = v / t\nG = a / 9.8'}</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.heading }]}>{t('parachute.formulaUsed')}</Text>
+        <Text style={[styles.formula, { color: colors.text }]}>{'v = d / t\na = v / t\nG = a / 9.8'}</Text>
+      </View>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.heading }]}>Prediction from G-force</Text>
+        <Text style={[styles.body, { color: colors.text }]}>Object response: {prediction.bounce}</Text>
+        <Text style={[styles.body, { color: colors.text }]}>G-force range: {prediction.range}</Text>
+        <Text style={[styles.body, { color: colors.text }]}>Comparable examples: {prediction.examples}</Text>
+        <Text style={[styles.body, { color: colors.text }]}>Likely effect: {prediction.effect}</Text>
+        <Text style={[styles.muted, { color: colors.muted }]}>Important: duration matters. A brief spike can be survivable, while sustained G-forces are more dangerous.</Text>
       </View>
       <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
         <Text style={styles.primaryButtonText}>{t('parachute.viewIterations')}</Text>
@@ -359,21 +426,31 @@ function IterationLogScreen({ iterations, onCreateNew, onFinish }: {
   onFinish: () => void;
 }) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
 
   return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('parachute.iterationLog')}</Text>
+    <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.heading, { color: colors.heading }]}>{t('parachute.iterationLog')}</Text>
       {iterations.length === 0 ? (
-        <View style={[styles.section, styles.center]}>
-          <Text style={styles.body}>{t('parachute.noIterations')}</Text>
+        <View style={[styles.section, styles.center, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.body, { color: colors.text }]}>{t('parachute.noIterations')}</Text>
         </View>
       ) : (
         iterations.map((iteration) => (
-          <View key={iteration.attempt} style={styles.iterCard}>
-            <Text style={styles.sectionTitle}>{iteration.name}</Text>
-            <Text style={styles.body}>
+          <View key={iteration.attempt} style={[styles.iterCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+            {(() => {
+              const prediction = predictGForceEffect(iteration.gForce);
+              return (
+                <>
+            <Text style={[styles.sectionTitle, { color: colors.heading }]}>{iteration.name}</Text>
+            <Text style={[styles.body, { color: colors.text }]}>
               {t('parachute.dropHeight')}: {iteration.height}m | {t('data.time')}: {iteration.time}s | {t('data.velocity')}: {iteration.velocity} m/s | {t('data.acceleration')}: {iteration.acceleration} m/s2 | {t('data.gForce')}: {iteration.gForce}G
             </Text>
+                  <Text style={[styles.body, { color: colors.text }]}>Object response: {prediction.bounce}</Text>
+                  <Text style={[styles.body, { color: colors.text }]}>Likely effect: {prediction.effect}</Text>
+                </>
+              );
+            })()}
           </View>
         ))
       )}
@@ -392,16 +469,17 @@ function IterationLogScreen({ iterations, onCreateNew, onFinish }: {
 function LeaderboardScreen({ iterations, onNext }: { iterations: Iteration[]; onNext: () => void }) {
   const { t } = useTranslation();
   const { team } = useTeam();
+  const colors = useThemeColors();
   const teams = team ? [team.teamName] : [];
   const averageTime = iterations.length
     ? (iterations.reduce((sum, iteration) => sum + iteration.time, 0) / iterations.length).toFixed(1)
     : '-';
 
   return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('parachute.leaderboard')}</Text>
-      <Text style={[styles.body, { marginBottom: 14 }]}>{t('parachute.rankedBy')}</Text>
-      {teams.length === 0 && <Text style={styles.body}>No synced leaderboard entries yet.</Text>}
+    <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.heading, { color: colors.heading }]}>{t('parachute.leaderboard')}</Text>
+      <Text style={[styles.body, { color: colors.text, marginBottom: 14 }]}>{t('parachute.rankedBy')}</Text>
+      {teams.length === 0 && <Text style={[styles.body, { color: colors.text }]}>No synced leaderboard entries yet.</Text>}
       {teams.map((teamName, index) => (
         <View key={teamName} style={[styles.lbRow, index === 0 && styles.lbFirst]}>
           <Text style={styles.rank}>{index + 1}</Text>
@@ -412,10 +490,10 @@ function LeaderboardScreen({ iterations, onNext }: { iterations: Iteration[]; on
           {index === 0 && <Text style={styles.teamBadge}>{t('parachute.yourTeam')}</Text>}
         </View>
       ))}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Iteration comparison</Text>
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.heading }]}>Iteration comparison</Text>
         {iterations.map((iteration) => (
-          <Text key={iteration.attempt} style={styles.body}>{iteration.name}: {iteration.time}s, {iteration.velocity} m/s</Text>
+          <Text key={iteration.attempt} style={[styles.body, { color: colors.text }]}>{iteration.name}: {iteration.time}s, {iteration.velocity} m/s, {iteration.gForce} G, {predictGForceEffect(iteration.gForce).bounce}</Text>
         ))}
       </View>
       <TouchableOpacity style={styles.primaryButton} onPress={onNext}>
@@ -428,13 +506,14 @@ function LeaderboardScreen({ iterations, onNext }: { iterations: Iteration[]; on
 function WriteUpScreen({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
   const { team } = useTeam();
+  const colors = useThemeColors();
   const fields = translatedArray(t('parachute.writeUpFields', { returnObjects: true }));
   const sketchQuestion = t('parachute.submitSketch');
 
   return (
-    <ScrollView style={styles.pad} contentContainerStyle={styles.scrollContent}>
-      <Text style={styles.heading}>{t('parachute.writeUp')}</Text>
-      <Text style={[styles.body, { marginBottom: 14 }]}>{t('parachute.reflect')}</Text>
+    <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
+      <Text style={[styles.heading, { color: colors.heading }]}>{t('parachute.writeUp')}</Text>
+      <Text style={[styles.body, { color: colors.text, marginBottom: 14 }]}>{t('parachute.reflect')}</Text>
       <SpeechButton text={fields} style={styles.speech} />
       <ReflectionForm
         activityId="parachute"
@@ -451,12 +530,16 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
 
 export function ParachuteActivity({ onBack }: Props) {
   const { t } = useTranslation();
+  const colors = useThemeColors();
   const [step, setStep] = useState(1);
   const [iterations, setIterations] = useState<Iteration[]>([]);
   const [currentIter, setCurrentIter] = useState(1);
   const [measurement, setMeasurement] = useState<MeasurementInput>({ iterationName: '', dropHeight: '', measuredTime: '' });
   const total = 7;
   const currentResult = buildIteration(measurement, currentIter);
+  const visibleIterations = currentResult && !iterations.some((iteration) => iteration.attempt === currentResult.attempt)
+    ? [...iterations, currentResult]
+    : iterations;
 
   const handleCreateIteration = () => {
     if (!currentResult) return;
@@ -466,8 +549,15 @@ export function ParachuteActivity({ onBack }: Props) {
     setStep(1);
   };
 
+  const handleFinishIterations = () => {
+    if (currentResult && !iterations.some((iteration) => iteration.attempt === currentResult.attempt)) {
+      setIterations((previous) => [...previous, currentResult]);
+    }
+    setStep(6);
+  };
+
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: colors.background }]}>
       <ActivityHeader
         title={iterations.length > 0 ? t('parachute.titleWithAttempt', { attempt: currentIter }) : t('parachute.title')}
         step={step}
@@ -480,8 +570,8 @@ export function ParachuteActivity({ onBack }: Props) {
         {step === 2 && <VideoAnalysisScreen onNext={() => setStep(3)} />}
         {step === 3 && <TimerScreen measurement={measurement} onChange={setMeasurement} onNext={() => setStep(4)} />}
         {step === 4 && <PhysicsCalculatorScreen iteration={currentResult} onNext={() => setStep(5)} />}
-        {step === 5 && <IterationLogScreen iterations={iterations} onCreateNew={handleCreateIteration} onFinish={() => setStep(6)} />}
-        {step === 6 && <LeaderboardScreen iterations={iterations} onNext={() => setStep(7)} />}
+        {step === 5 && <IterationLogScreen iterations={visibleIterations} onCreateNew={handleCreateIteration} onFinish={handleFinishIterations} />}
+        {step === 6 && <LeaderboardScreen iterations={visibleIterations} onNext={() => setStep(7)} />}
         {step === 7 && <WriteUpScreen onBack={onBack} />}
       </View>
     </View>
@@ -493,6 +583,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   pad: { flex: 1, paddingHorizontal: 20, paddingTop: 20 },
   scrollContent: { paddingBottom: 32 },
+  timerScrollContent: { paddingBottom: 32 },
   heading: { color: stemmColors.blue, fontSize: 26, fontWeight: '800', marginBottom: 12 },
   speech: { marginBottom: 16 },
   body: { color: stemmColors.text, fontSize: 16, lineHeight: 24 },
@@ -503,11 +594,12 @@ const styles = StyleSheet.create({
   notice: { backgroundColor: '#FFF4E8', borderColor: stemmColors.orange, borderRadius: 14, borderWidth: 1, marginBottom: 14, padding: 14 },
   noticeTitle: { color: '#9A4E00', fontSize: 16, fontWeight: '800' },
   noticeText: { color: '#7A4B1F', fontSize: 14, marginTop: 2 },
-  primaryButton: { alignItems: 'center', backgroundColor: stemmColors.blue, borderRadius: 14, marginBottom: 8, minHeight: 52, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14 },
+  primaryButton: { alignItems: 'center', backgroundColor: stemmColors.blue, borderColor: '#756A64', borderRadius: 14, borderWidth: 1, marginBottom: 8, minHeight: 52, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14 },
   primaryButtonText: { color: stemmColors.white, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   outlineButton: { alignItems: 'center', borderColor: stemmColors.blue, borderRadius: 14, borderWidth: 2, marginBottom: 8, minHeight: 52, justifyContent: 'center', paddingHorizontal: 18, paddingVertical: 14 },
   outlineButtonText: { color: stemmColors.blue, fontSize: 17, fontWeight: '800', textAlign: 'center' },
   centerStage: { alignItems: 'center', flex: 1, justifyContent: 'center' },
+  timerForm: { alignItems: 'stretch', marginBottom: 8 },
   center: { alignItems: 'center' },
   timer: { color: stemmColors.blue, fontSize: 72, fontVariant: ['tabular-nums'], fontWeight: '800', marginBottom: 16 },
   buttonRow: { flexDirection: 'row', gap: 12, marginTop: 20, width: '100%' },
