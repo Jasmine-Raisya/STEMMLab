@@ -31,7 +31,7 @@ export function SpeechButton({ text, style }: Props) {
   };
 
   return (
-    <TouchableOpacity accessibilityRole="button" onPress={handlePress} style={[styles.button, style]}>
+    <TouchableOpacity accessibilityRole="button" onPress={handlePress} style={[styles.button, style]} testID="read_aloud_button">
       <Text style={styles.icon}>{speaking ? '■' : '▶'}</Text>
       <Text style={styles.label}>{speaking ? t('common.stopReading') : t('common.readAloud')}</Text>
     </TouchableOpacity>

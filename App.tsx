@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, StatusBar, View } from 'react-native';
+import mobileAds from 'react-native-google-mobile-ads';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 import { ThemeProvider } from './src/ThemeContext';
 import { useTheme } from './src/ThemeContext';
@@ -71,6 +72,7 @@ function isRouteId(screen: number): screen is RouteId {
 export default function App() {
   useEffect(() => {
     void initializeDatabase();
+    void mobileAds().initialize();
     if (!__DEV__) {
       void import('./src/services/backgroundSync').then(({ registerBackgroundSync }) => {
         void registerBackgroundSync();

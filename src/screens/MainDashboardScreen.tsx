@@ -10,7 +10,7 @@ import { brandColors, radius, typography } from '../tokens';
 
 interface Props { onNavigate: (screen: number) => void; }
 
-function ScaleButton({ accessibilityLabel, children, fill, onPress, pressedScale = 0.95, style }: { accessibilityLabel: string; children: React.ReactNode; fill?: boolean; onPress: () => void; pressedScale?: number; style: object | object[] }) {
+function ScaleButton({ accessibilityLabel, children, fill, onPress, pressedScale = 0.95, style, testID }: { accessibilityLabel: string; children: React.ReactNode; fill?: boolean; onPress: () => void; pressedScale?: number; style: object | object[]; testID?: string }) {
   const press = useButtonPress(pressedScale);
   return (
     <Animated.View style={[fill && styles.scaleFill, { transform: [{ scale: press.scale }] }]}>
@@ -21,6 +21,7 @@ function ScaleButton({ accessibilityLabel, children, fill, onPress, pressedScale
         onPressIn={press.handlePressIn}
         onPressOut={press.handlePressOut}
         style={style}
+        testID={testID}
       >
         {children}
       </TouchableOpacity>
@@ -44,10 +45,10 @@ export function MainDashboardScreen({ onNavigate }: Props) {
           <Text style={[styles.subtitle, { color: colors.muted }]}>{t('common.choosePath')}</Text>
         </View>
         <View style={styles.headerButtons}>
-          <ScaleButton accessibilityLabel="Open team profile" onPress={() => onNavigate(5)} style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <ScaleButton accessibilityLabel="Open team profile" onPress={() => onNavigate(5)} style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]} testID="dashboard_team_profile_button">
             <Text style={styles.iconText}>👥</Text>
           </ScaleButton>
-          <ScaleButton accessibilityLabel="Open settings" onPress={() => onNavigate(6)} style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <ScaleButton accessibilityLabel="Open settings" onPress={() => onNavigate(6)} style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]} testID="dashboard_settings_button">
             <Text style={styles.iconText}>⚙</Text>
           </ScaleButton>
         </View>
@@ -55,7 +56,7 @@ export function MainDashboardScreen({ onNavigate }: Props) {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Animated.View style={[styles.tileWrap, { height: height * 0.32 }, stemAnim]}>
-          <ScaleButton accessibilityLabel={t('common.engineering')} fill onPress={() => onNavigate(7)} pressedScale={0.97} style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.accent }]}>
+          <ScaleButton accessibilityLabel={t('common.engineering')} fill onPress={() => onNavigate(7)} pressedScale={0.97} style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.accent }]} testID="dashboard_engineering_button">
             <View style={[styles.tileIcon, { backgroundColor: colors.accent }]}>
               <Text style={styles.tileMarker}>STEM</Text>
             </View>
@@ -65,7 +66,7 @@ export function MainDashboardScreen({ onNavigate }: Props) {
         </Animated.View>
 
         <Animated.View style={[styles.tileWrap, { height: height * 0.32 }, healthAnim]}>
-          <ScaleButton accessibilityLabel={t('common.health')} fill onPress={() => onNavigate(12)} pressedScale={0.97} style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.cta }]}>
+          <ScaleButton accessibilityLabel={t('common.health')} fill onPress={() => onNavigate(12)} pressedScale={0.97} style={[styles.tile, { backgroundColor: colors.card, borderColor: colors.cta }]} testID="dashboard_health_button">
             <View style={[styles.tileIcon, { backgroundColor: colors.cta }]}>
               <Text style={styles.tileMarkerLight}>MED</Text>
             </View>

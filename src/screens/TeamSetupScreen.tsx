@@ -123,6 +123,7 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
           accessibilityRole="button"
           onPress={() => switchMode('register')}
           style={[styles.modeButton, { backgroundColor: mode === 'register' ? colors.accent : 'transparent', borderColor: mode === 'register' ? colors.accent : colors.border }]}
+          testID="auth_mode_register_button"
         >
           <Text style={[styles.modeText, { color: mode === 'register' ? colors.accentText : colors.text }]}>{t('common.createTeamAccount')}</Text>
         </TouchableOpacity>
@@ -131,6 +132,7 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
           accessibilityRole="button"
           onPress={() => switchMode('signIn')}
           style={[styles.modeButton, { backgroundColor: mode === 'signIn' ? colors.accent : 'transparent', borderColor: mode === 'signIn' ? colors.accent : colors.border }]}
+          testID="auth_mode_sign_in_button"
         >
           <Text style={[styles.modeText, { color: mode === 'signIn' ? colors.accentText : colors.text }]}>{t('common.signIn')}</Text>
         </TouchableOpacity>
@@ -140,6 +142,7 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
         <Text style={[styles.label, { color: colors.heading }]}>{t('common.representativeEmail')}</Text>
         <TextInput
           autoCapitalize="none"
+          nativeID="representative-email"
           keyboardType="email-address"
           onChangeText={(value) => {
             setError('');
@@ -148,12 +151,14 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
           placeholder={t('common.emailPlaceholder')}
           placeholderTextColor={colors.muted}
           style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
+          testID="representative_email_input"
           value={representativeEmail}
         />
 
         <Text style={[styles.label, { color: colors.heading }]}>{t('common.password')}</Text>
         <TextInput
           autoCapitalize="none"
+          nativeID="team-password"
           onChangeText={(value) => {
             setError('');
             setPassword(value);
@@ -162,6 +167,7 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
           placeholderTextColor={colors.muted}
           secureTextEntry
           style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
+          testID="team_password_input"
           value={password}
         />
 
@@ -169,6 +175,7 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
           <>
             <Text style={[styles.label, { color: colors.heading }]}>{t('common.teamName')}</Text>
             <TextInput
+              nativeID="team-name"
               onChangeText={(value) => {
                 setError('');
                 setTeamName(value);
@@ -176,12 +183,13 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
               placeholder={t('common.teamName')}
               placeholderTextColor={colors.muted}
               style={[styles.input, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
+              testID="team_name_input"
               value={teamName}
             />
 
             <View style={styles.rowHeader}>
               <Text style={[styles.label, { color: colors.heading }]}>{t('common.teamMembers')}</Text>
-              <TouchableOpacity accessibilityLabel={t('common.addMember')} accessibilityRole="button" onPress={addMember} style={[styles.addButton, { borderColor: colors.cta }]}>
+              <TouchableOpacity accessibilityLabel={t('common.addMember')} accessibilityRole="button" onPress={addMember} style={[styles.addButton, { borderColor: colors.cta }]} testID="add_member_button">
                 <Text style={styles.addIcon}>+</Text>
                 <Text style={styles.addText}>{t('common.addMember')}</Text>
               </TouchableOpacity>
@@ -192,14 +200,16 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
                 <View style={styles.memberRow}>
                   <TextInput
                     autoCapitalize="words"
+                    nativeID={`team-member-${index + 1}`}
                     onChangeText={(value) => updateMember(index, value)}
                     placeholder={t('common.firstNamePlaceholder')}
                     placeholderTextColor={colors.muted}
                     returnKeyType="next"
                     style={[styles.input, styles.memberInput, { backgroundColor: colors.input, borderColor: colors.border, color: colors.text }]}
+                    testID={`team_member_${index + 1}_input`}
                     value={member}
                   />
-                  <TouchableOpacity accessibilityLabel="Remove member" accessibilityRole="button" onPress={() => removeMember(index)} style={[styles.removeButton, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                  <TouchableOpacity accessibilityLabel="Remove member" accessibilityRole="button" onPress={() => removeMember(index)} style={[styles.removeButton, { backgroundColor: colors.surface, borderColor: colors.border }]} testID={`remove_member_${index + 1}_button`}>
                     <Text style={styles.removeIcon}>x</Text>
                   </TouchableOpacity>
                 </View>
@@ -217,7 +227,7 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
             <Text style={[styles.label, { color: colors.heading, marginTop: 16 }]}>{t('common.yearLevel')}</Text>
             <View style={styles.gradeRow}>
               {grades.map((grade) => (
-                <TouchableOpacity accessibilityLabel={t('common.year', { year: grade })} accessibilityRole="button" key={grade} onPress={() => { setError(''); setGradeLevel(grade); }} style={[styles.gradeButton, { backgroundColor: gradeLevel === grade ? colors.accent : colors.surface, borderColor: gradeLevel === grade ? colors.accent : colors.border }]}>
+                <TouchableOpacity accessibilityLabel={t('common.year', { year: grade })} accessibilityRole="button" key={grade} onPress={() => { setError(''); setGradeLevel(grade); }} style={[styles.gradeButton, { backgroundColor: gradeLevel === grade ? colors.accent : colors.surface, borderColor: gradeLevel === grade ? colors.accent : colors.border }]} testID={`grade_${grade}_button`}>
                   <Text style={[styles.gradeText, { color: gradeLevel === grade ? colors.accentText : colors.text }]}>{t('common.year', { year: grade })}</Text>
                 </TouchableOpacity>
               ))}
@@ -231,7 +241,7 @@ export function TeamSetupScreen({ onRegistered, onSignedIn }: Props) {
         )}
       </ScrollView>
 
-      <TouchableOpacity accessibilityLabel={t(mode === 'signIn' ? 'common.signIn' : 'common.createTeamAccount')} accessibilityRole="button" style={[styles.btn, (!isValid || isSubmitting) && styles.btnDisabled]} onPress={handleContinue} activeOpacity={0.85}>
+      <TouchableOpacity accessibilityLabel={t(mode === 'signIn' ? 'common.signIn' : 'common.createTeamAccount')} accessibilityRole="button" style={[styles.btn, (!isValid || isSubmitting) && styles.btnDisabled]} onPress={handleContinue} activeOpacity={0.85} testID="auth_submit_button">
         <Text style={styles.btnText}>
           {isSubmitting
             ? t(mode === 'signIn' ? 'common.signingIn' : 'common.registering')

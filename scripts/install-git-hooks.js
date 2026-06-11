@@ -10,9 +10,16 @@ if (!fs.existsSync(hooksDir)) {
   process.exit(0);
 }
 
-const hook = `#!/bin/sh
-echo "Running STEMM Games pre-commit checks..."
-npm run secrets:scan:staged
+const hook = `#!/usr/bin/env node
+const { spawnSync } = require('child_process');
+
+console.log('Running STEMM Games pre-commit checks...');
+const npmCommand = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+const result = spawnSync(npmCommand, ['run', 'secrets:scan:staged'], {
+  stdio: 'inherit',
+});
+
+process.exit(result.status || 0);
 `;
 
 fs.writeFileSync(hookPath, hook, { mode: 0o755 });
