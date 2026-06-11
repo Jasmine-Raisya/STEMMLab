@@ -7,8 +7,16 @@
     "icon": "./assets/adaptable-icon.jpeg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
     "updates": {
-      "enabled": false
+      "enabled": false,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "requestHeaders": {
+        "expo-channel-name": "preview"
+      }
     },
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -70,7 +78,14 @@
           "microphonePermission": "STEMM Lab uses the microphone to estimate sound levels during experiments."
         }
       ],
-      "expo-background-fetch"
+      "expo-background-fetch",
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-4821270786026765~2765663083",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511"
+        }
+      ]
     ]
   }
 }

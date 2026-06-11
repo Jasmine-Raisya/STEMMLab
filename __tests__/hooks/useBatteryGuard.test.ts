@@ -23,12 +23,15 @@ describe('useBatteryGuard', () => {
 
     const { result } = renderHook(() => useBatteryGuard());
 
+    await act(async () => {
+      await Promise.resolve();
+    });
     act(() => levelListener?.({ batteryLevel: 0.1 }));
     expect(result.current.percent).toBe(10);
     expect(result.current.shouldThrottle).toBe(true);
   });
 
-  it('throttles in low power mode', () => {
+  it('throttles in low power mode', async () => {
     let powerListener: ((event: { lowPowerMode: boolean }) => void) | undefined;
     jest.mocked(Battery.addLowPowerModeListener).mockImplementationOnce((listener) => {
       powerListener = listener as typeof powerListener;
@@ -37,6 +40,9 @@ describe('useBatteryGuard', () => {
 
     const { result } = renderHook(() => useBatteryGuard());
 
+    await act(async () => {
+      await Promise.resolve();
+    });
     act(() => powerListener?.({ lowPowerMode: true }));
     expect(result.current.lowPowerMode).toBe(true);
     expect(result.current.shouldThrottle).toBe(true);

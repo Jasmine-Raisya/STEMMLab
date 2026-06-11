@@ -1,5 +1,5 @@
 import React from 'react';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import { TeamProfileScreen } from '../../src/screens/TeamProfileScreen';
 import { fetchExperimentRecordsForTeam } from '../../src/services/firestoreService';
@@ -23,9 +23,13 @@ jest.mock('../../src/services/teamContext', () => ({
 }));
 
 describe('TeamProfileScreen', () => {
-  it('renders team profile details', () => {
+  it('renders team profile details', async () => {
     jest.mocked(fetchExperimentRecordsForTeam).mockResolvedValueOnce([]);
     const { getByText } = render(<TeamProfileScreen onBack={jest.fn()} />);
+
+    await act(async () => {
+      await Promise.resolve();
+    });
 
     expect(getByText('STEMM Testing #1234')).toBeTruthy();
     expect(getByText('STEMM Testing')).toBeTruthy();
@@ -48,7 +52,9 @@ describe('TeamProfileScreen', () => {
     const { getAllByText, getByLabelText, getByText } = render(<TeamProfileScreen onBack={jest.fn()} />);
 
     await waitFor(() => expect(getByText('Reaction Board')).toBeTruthy(), { timeout: 4000 });
-    fireEvent.press(getByLabelText('Open Reaction Board record'));
+    await act(async () => {
+      fireEvent.press(getByLabelText('Open Reaction Board record'));
+    });
 
     await waitFor(() => expect(getByText('Record ID')).toBeTruthy(), { timeout: 4000 });
     expect(getByText('record-reaction-1')).toBeTruthy();

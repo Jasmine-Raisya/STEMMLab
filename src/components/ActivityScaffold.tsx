@@ -41,6 +41,7 @@ export function ActivityHeader({ title, step, total, color, onBack }: ActivityHe
           onPressIn={backPress.handlePressIn}
           onPressOut={backPress.handlePressOut}
           style={[headerStyles.backButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
+          testID="activity_back_button"
         >
           <Text style={[headerStyles.backIcon, { color: colors.text }]}>{'‹'}</Text>
         </TouchableOpacity>

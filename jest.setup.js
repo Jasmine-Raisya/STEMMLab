@@ -1,5 +1,7 @@
 require('@testing-library/jest-native/extend-expect');
 
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+
 jest.mock('expo-localization', () => ({
   getLocales: jest.fn(() => [{ languageCode: 'en' }]),
 }));
