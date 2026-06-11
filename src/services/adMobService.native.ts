@@ -1,5 +1,3 @@
-import mobileAds from 'react-native-google-mobile-ads';
-
 export async function initializeAdMob() {
-  await mobileAds().initialize();
+  return undefined;
 }
