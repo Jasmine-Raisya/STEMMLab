@@ -2,24 +2,23 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 
 import { ReflectionForm } from '../../src/components/ReflectionForm';
-import { insertActivityReflection } from '../../src/services/localDb';
+import { submitFinalExperimentRecord } from '../../src/services/syncService';
 
 jest.mock('../../src/services/localDb', () => ({
   deleteExperimentDraft: jest.fn(async () => undefined),
   getExperimentDraft: jest.fn(async () => null),
-  insertActivityReflection: jest.fn(async () => undefined),
   saveExperimentDraft: jest.fn(async () => undefined),
 }));
 
 jest.mock('../../src/services/syncService', () => ({
-  syncPendingLocalData: jest.fn(async () => ({ skipped: false })),
+  submitFinalExperimentRecord: jest.fn(async () => ({ skipped: false })),
 }));
 
 describe('ReflectionForm', () => {
   it('enables saving after rating and answer are completed', async () => {
     const onSaved = jest.fn();
     const { getByText, getByPlaceholderText, getByDisplayValue } = render(
-      <ReflectionForm activityId="sound" teamId="team-1" questions={['What happened?']} onSaved={onSaved} />,
+      <ReflectionForm activityId="sound" teamId="team-1" questions={['What happened?']} results={{ averageDecibel: 55 }} onSaved={onSaved} />,
     );
 
     fireEvent.press(getByText('5'));
@@ -28,11 +27,12 @@ describe('ReflectionForm', () => {
     expect(getByDisplayValue('It worked.')).toBeTruthy();
     fireEvent.press(getByText('Save Reflection'));
 
-    await waitFor(() => expect(insertActivityReflection).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(submitFinalExperimentRecord).toHaveBeenCalledWith(expect.objectContaining({
       activityId: 'sound',
       teamId: 'team-1',
       rating: 5,
       answers: { 'What happened?': 'It worked.' },
+      results: { averageDecibel: 55 },
     })));
   });
 

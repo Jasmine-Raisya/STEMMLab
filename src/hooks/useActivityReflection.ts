@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import { deleteExperimentDraft, getExperimentDraft, insertActivityReflection, saveExperimentDraft } from '../services/localDb';
-import { syncPendingLocalData } from '../services/syncService';
+import { deleteExperimentDraft, getExperimentDraft, saveExperimentDraft } from '../services/localDb';
+import { submitFinalExperimentRecord } from '../services/syncService';
 import { ActivityId } from '../types/models';
 
-export function useActivityReflection(activityId: ActivityId, teamId: string, questions: string[]) {
+export function useActivityReflection(activityId: ActivityId, teamId: string, questions: string[], results?: Record<string, unknown>) {
   const [rating, setRating] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>(
     () => Object.fromEntries(questions.map((question) => [question, ''])),
@@ -49,19 +49,14 @@ export function useActivityReflection(activityId: ActivityId, teamId: string, qu
 
   const save = async () => {
     if (!isValid) throw new Error('Please complete every reflection answer and rating.');
-    await insertActivityReflection({
+    await submitFinalExperimentRecord({
       activityId,
       teamId,
       rating,
       answers,
-      timestamp: Date.now(),
+      results,
     });
     await deleteExperimentDraft(activityId, teamId);
-    try {
-      await syncPendingLocalData();
-    } catch (error) {
-      console.warn('Reflection saved locally, but Firestore sync failed.', error);
-    }
   };
 
   return useMemo(() => ({ rating, setRating, answers, updateAnswer, isValid, save }), [answers, isValid, rating]);

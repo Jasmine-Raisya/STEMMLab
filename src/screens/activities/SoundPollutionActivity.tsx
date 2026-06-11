@@ -292,6 +292,13 @@ function WriteUpScreen({ logs, onBack }: { logs: SoundActionLog[]; onBack: () =>
   const colors = useThemeColors();
   const { team } = useTeam();
   const fields = translatedArray(t('sound.writeUpFields', { returnObjects: true }));
+  const values = logs.map((log) => log.decibel);
+  const results = {
+    actionLogs: logs,
+    averageDecibel: values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null,
+    maxDecibel: values.length ? Math.max(...values) : null,
+    minDecibel: values.length ? Math.min(...values) : null,
+  };
 
   return (
     <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
@@ -304,7 +311,7 @@ function WriteUpScreen({ logs, onBack }: { logs: SoundActionLog[]; onBack: () =>
         ))}
       </View>
       <SpeechButton text={fields} style={s.speech} />
-      <ReflectionForm activityId="sound" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
+      <ReflectionForm activityId="sound" teamId={team?.id ?? 'local'} questions={fields} results={results} onSaved={onBack} />
     </ScrollView>
   );
 }

@@ -3,32 +3,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { isFirebaseConfigured } from './firebaseConfig';
 import { syncExperimentRecords } from './firestoreService';
 import {
-  getUnsyncedActivityLogs,
-  getUnsyncedActivityReflections,
-  markActivityLogsSynced,
+  deletePendingExperimentRecords,
+  getPendingExperimentRecords,
+  getRecentSensorSamples,
+  insertActivityReflection,
   markActivityReflectionsSynced,
+  queueExperimentRecord,
 } from './localDb';
-import { ActivityId, ActivityLog, ActivityReflection, ExperimentRecord, TeamProfile } from '../types/models';
+import { ActivityId, ExperimentRecord, SensorSample, TeamProfile } from '../types/models';
 
 const TEAM_PROFILE_BACKUP_KEY = 'stemm.activeTeamProfile';
 const FALLBACK_TEAM_ID = 'unknown-team';
 
-type ActivityLogRow = {
-  id: number;
-  activity_id: string;
-  team_id: string;
-  payload_json: string;
-  timestamp: number;
+type FinalExperimentInput = {
+  activityId: ActivityId;
+  teamId: string;
+  rating: number;
+  answers: Record<string, string>;
+  results?: Record<string, unknown>;
+  timestamp?: number;
 };
-
-type ExperimentRecordKind = 'activity_result' | 'reflection';
 
 function sanitizeIdPart(value: string | number | undefined) {
   return String(value ?? 'unknown').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') || 'unknown';
-}
-
-function createExperimentRecordId(teamId: string, kind: ExperimentRecordKind, activityId: ActivityId, localRowId: number | undefined, timestamp: number) {
-  return [sanitizeIdPart(teamId), kind, sanitizeIdPart(activityId), sanitizeIdPart(localRowId ?? timestamp)].join('_');
 }
 
 async function getActiveTeamProfile() {
@@ -46,72 +43,120 @@ function buildOwnerFields(team: TeamProfile | null, explicitTeamId?: string) {
   };
 }
 
-function activityLogToExperimentRecord(row: ActivityLogRow, team: TeamProfile | null): ExperimentRecord {
-  const activityId = row.activity_id as ActivityId;
-  const owner = buildOwnerFields(team, row.team_id);
-  const log: ActivityLog = {
-    id: row.id,
-    activityId,
-    teamId: row.team_id,
-    payload: JSON.parse(row.payload_json) as Record<string, unknown>,
-    timestamp: row.timestamp,
-  };
+function summarizeSensorSamples(samples: SensorSample[]) {
+  if (samples.length === 0) {
+    return { count: 0, metrics: [] };
+  }
 
-  return {
-    ...owner,
-    id: createExperimentRecordId(owner.teamId, 'activity_result', activityId, row.id, row.timestamp),
-    activityId,
-    score: getNumericScore(log.payload),
-    timestamp: row.timestamp,
-    details: {
-      type: 'activity_result',
-      localRowId: row.id,
-      results: log.payload,
-    },
-  };
+  const metrics = Array.from(new Set(samples.map((sample) => sample.metric))).map((metric) => {
+    const metricSamples = samples.filter((sample) => sample.metric === metric);
+    const values = metricSamples.map((sample) => sample.value);
+    const average = values.reduce((sum, value) => sum + value, 0) / values.length;
+    return {
+      metric,
+      count: metricSamples.length,
+      average: Number(average.toFixed(3)),
+      max: Number(Math.max(...values).toFixed(3)),
+      min: Number(Math.min(...values).toFixed(3)),
+    };
+  });
+
+  return { count: samples.length, metrics };
 }
 
-function reflectionToExperimentRecord(reflection: ActivityReflection, team: TeamProfile | null): ExperimentRecord {
-  const owner = buildOwnerFields(team, reflection.teamId);
+function getScore(rating: number, results?: Record<string, unknown>) {
+  const candidates = [
+    results?.score,
+    results?.bestScore,
+    results?.bestTime,
+    results?.average,
+    rating,
+  ];
+  const score = candidates.find((candidate) => typeof candidate === 'number' && Number.isFinite(candidate));
+  return typeof score === 'number' ? score : rating;
+}
+
+function buildFinalExperimentRecord(
+  input: Required<Pick<FinalExperimentInput, 'activityId' | 'teamId' | 'rating' | 'answers'>> & {
+    localRowId: number;
+    results?: Record<string, unknown>;
+    sensorSamples: SensorSample[];
+    team: TeamProfile | null;
+    timestamp: number;
+  },
+): ExperimentRecord {
+  const owner = buildOwnerFields(input.team, input.teamId);
+  const id = [
+    sanitizeIdPart(owner.teamId),
+    'experiment',
+    sanitizeIdPart(input.activityId),
+    sanitizeIdPart(input.localRowId),
+  ].join('_');
+
   return {
     ...owner,
-    id: createExperimentRecordId(owner.teamId, 'reflection', reflection.activityId, reflection.id, reflection.timestamp),
-    activityId: reflection.activityId,
-    score: reflection.rating,
-    timestamp: reflection.timestamp,
+    id,
+    activityId: input.activityId,
+    score: getScore(input.rating, input.results),
+    timestamp: input.timestamp,
     details: {
-      type: 'reflection',
-      localRowId: reflection.id,
+      type: 'experiment_record',
+      localRowId: input.localRowId,
+      results: input.results ?? {},
       reflection: {
-        rating: reflection.rating,
-        answers: reflection.answers,
+        rating: input.rating,
+        answers: input.answers,
       },
+      sensorSummary: summarizeSensorSamples(input.sensorSamples),
+      sensorData: input.sensorSamples.slice(-25),
     },
   };
 }
 
-function getNumericScore(payload: Record<string, unknown>) {
-  const score = payload.score ?? payload.bestTime ?? payload.value ?? payload.rating;
-  return typeof score === 'number' && Number.isFinite(score) ? score : 0;
+export async function submitFinalExperimentRecord(input: FinalExperimentInput) {
+  const timestamp = input.timestamp ?? Date.now();
+  const localRowId = await insertActivityReflection({
+    activityId: input.activityId,
+    teamId: input.teamId,
+    rating: input.rating,
+    answers: input.answers,
+    timestamp,
+  });
+  const [team, sensorSamples] = await Promise.all([
+    getActiveTeamProfile(),
+    getRecentSensorSamples(input.activityId, 100),
+  ]);
+  const record = buildFinalExperimentRecord({
+    ...input,
+    localRowId,
+    sensorSamples,
+    team,
+    timestamp,
+  });
+
+  await queueExperimentRecord(record);
+
+  if (!isFirebaseConfigured) return { skipped: true, record };
+
+  try {
+    await syncExperimentRecords([record]);
+    await deletePendingExperimentRecords([record.id]);
+    await markActivityReflectionsSynced([localRowId]);
+    return { skipped: false, record };
+  } catch (error) {
+    console.warn('Experiment saved locally, but Firestore sync failed.', error);
+    return { skipped: true, record };
+  }
 }
 
 export async function syncPendingLocalData() {
-  if (!isFirebaseConfigured) return { skipped: true, samples: 0, logs: 0, reflections: 0 };
+  if (!isFirebaseConfigured) return { skipped: true, samples: 0, logs: 0, reflections: 0, records: 0 };
 
-  const team = await getActiveTeamProfile();
-
-  const logs = await getUnsyncedActivityLogs();
-  if (logs.length > 0) {
-    await syncExperimentRecords(logs.map((log) => activityLogToExperimentRecord(log, team)));
-    await markActivityLogsSynced(logs.map((log) => log.id));
+  const records = await getPendingExperimentRecords();
+  if (records.length > 0) {
+    await syncExperimentRecords(records);
+    await deletePendingExperimentRecords(records.map((record) => record.id));
   }
 
-  const reflections = await getUnsyncedActivityReflections();
-  const reflectionIds = reflections.map((reflection) => reflection.id).filter((id): id is number => typeof id === 'number');
-  if (reflections.length > 0) {
-    await syncExperimentRecords(reflections.map((reflection) => reflectionToExperimentRecord(reflection, team)));
-    await markActivityReflectionsSynced(reflectionIds);
-  }
-
-  return { skipped: false, samples: 0, logs: logs.length, reflections: reflections.length };
+  return { skipped: false, samples: 0, logs: 0, reflections: 0, records: records.length };
 }

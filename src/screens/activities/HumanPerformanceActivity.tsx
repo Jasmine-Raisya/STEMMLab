@@ -284,7 +284,13 @@ export function HumanPerformanceActivity({ onBack }: Props) {
           <Text style={[styles.heading, { color: colors.heading }]}>{t('humanPerformance.writeUp')}</Text>
           <Text style={[styles.body, { color: colors.text, marginBottom: 14 }]}>{t('humanPerformance.documentFindings')}</Text>
           <SpeechButton text={[...fields, ...resultReflectionFields(results)]} style={styles.speech} />
-          <ReflectionForm activityId="humanPerformance" teamId={team?.id ?? 'local'} questions={[...fields, ...resultReflectionFields(results)]} onSaved={onBack} />
+          <ReflectionForm
+            activityId="humanPerformance"
+            teamId={team?.id ?? 'local'}
+            questions={[...fields, ...resultReflectionFields(results)]}
+            results={{ movements: results, leaderboard }}
+            onSaved={onBack}
+          />
         </ScrollView>
       )}
     </View>

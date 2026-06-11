@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { syncPendingLocalData } from '../../src/services/syncService';
+import { submitFinalExperimentRecord, syncPendingLocalData } from '../../src/services/syncService';
 import * as localDb from '../../src/services/localDb';
 import { syncExperimentRecords } from '../../src/services/firestoreService';
 
@@ -13,12 +13,12 @@ jest.mock('../../src/services/firestoreService', () => ({
 }));
 
 jest.mock('../../src/services/localDb', () => ({
-  getUnsyncedSensorSamples: jest.fn(),
-  getUnsyncedActivityLogs: jest.fn(),
-  getUnsyncedActivityReflections: jest.fn(),
-  markSensorSamplesSynced: jest.fn(async () => undefined),
-  markActivityLogsSynced: jest.fn(async () => undefined),
+  deletePendingExperimentRecords: jest.fn(async () => undefined),
+  getPendingExperimentRecords: jest.fn(),
+  getRecentSensorSamples: jest.fn(),
+  insertActivityReflection: jest.fn(),
   markActivityReflectionsSynced: jest.fn(async () => undefined),
+  queueExperimentRecord: jest.fn(async () => undefined),
 }));
 
 describe('syncService', () => {
@@ -30,33 +30,65 @@ describe('syncService', () => {
       representativeEmail: 'team@example.com',
       teamName: 'Team One',
     }));
+    jest.mocked(localDb.insertActivityReflection).mockResolvedValue(7);
+    jest.mocked(localDb.getRecentSensorSamples).mockResolvedValue([
+      { id: 1, activityId: 'reaction', metric: 'tap', value: 210, timestamp: 10 },
+    ]);
+    jest.mocked(localDb.getPendingExperimentRecords).mockResolvedValue([]);
   });
 
-  it('syncs completed logs and reflections into experiment_records without uploading raw sensor samples', async () => {
-    jest.mocked(localDb.getUnsyncedSensorSamples).mockResolvedValue([{ id: 1, activityId: 'earthquake', metric: 'acceleration', value: 1.8, timestamp: 10 }]);
-    jest.mocked(localDb.getUnsyncedActivityLogs).mockResolvedValue([{ id: 2, activity_id: 'parachute', team_id: 'team-1', payload_json: '{"score":7}', timestamp: 20, synced: 0 }]);
-    jest.mocked(localDb.getUnsyncedActivityReflections).mockResolvedValue([{ id: 3, activityId: 'reaction', teamId: 'team-1', rating: 5, answers: { q: 'a' }, timestamp: 30, synced: false }]);
-
-    await expect(syncPendingLocalData()).resolves.toEqual({ skipped: false, samples: 0, logs: 1, reflections: 1 });
-
-    expect(localDb.getUnsyncedSensorSamples).not.toHaveBeenCalled();
-    expect(localDb.markSensorSamplesSynced).not.toHaveBeenCalled();
-    expect(syncExperimentRecords).toHaveBeenCalledTimes(2);
-    expect(jest.mocked(syncExperimentRecords).mock.calls[0][0][0]).toMatchObject({
+  it('submits one complete final experiment record with results, reflection, and sensor context', async () => {
+    await expect(submitFinalExperimentRecord({
+      activityId: 'reaction',
       teamId: 'team-1',
-      activityId: 'parachute',
-      details: expect.objectContaining({ type: 'activity_result' }),
+      rating: 5,
+      answers: { q: 'a' },
+      results: { bestTime: 210, attempts: 1 },
+      timestamp: 30,
+    })).resolves.toMatchObject({ skipped: false });
+
+    expect(syncExperimentRecords).toHaveBeenCalledTimes(1);
+    expect(jest.mocked(syncExperimentRecords).mock.calls[0][0]).toHaveLength(1);
+    expect(jest.mocked(syncExperimentRecords).mock.calls[0][0][0]).toMatchObject({
+      id: 'team-1_experiment_reaction_7',
+      teamId: 'team-1',
+      activityId: 'reaction',
+      score: 210,
+      details: {
+        type: 'experiment_record',
+        localRowId: 7,
+        results: { bestTime: 210, attempts: 1 },
+        reflection: { rating: 5, answers: { q: 'a' } },
+        sensorData: [expect.objectContaining({ metric: 'tap', value: 210 })],
+      },
     });
-    expect(localDb.markActivityLogsSynced).toHaveBeenCalledWith([2]);
-    expect(localDb.markActivityReflectionsSynced).toHaveBeenCalledWith([3]);
+    expect(localDb.queueExperimentRecord).toHaveBeenCalledTimes(1);
+    expect(localDb.deletePendingExperimentRecords).toHaveBeenCalledWith(['team-1_experiment_reaction_7']);
+    expect(localDb.markActivityReflectionsSynced).toHaveBeenCalledWith([7]);
   });
 
-  it('returns zero counts when there is nothing pending', async () => {
-    jest.mocked(localDb.getUnsyncedSensorSamples).mockResolvedValue([]);
-    jest.mocked(localDb.getUnsyncedActivityLogs).mockResolvedValue([]);
-    jest.mocked(localDb.getUnsyncedActivityReflections).mockResolvedValue([]);
+  it('syncs only queued final experiment records during background sync', async () => {
+    jest.mocked(localDb.getPendingExperimentRecords).mockResolvedValue([
+      {
+        id: 'team-1_experiment_reaction_7',
+        teamId: 'team-1',
+        activityId: 'reaction',
+        score: 5,
+        timestamp: 30,
+        details: { type: 'experiment_record' },
+      },
+    ]);
 
-    await expect(syncPendingLocalData()).resolves.toEqual({ skipped: false, samples: 0, logs: 0, reflections: 0 });
+    await expect(syncPendingLocalData()).resolves.toEqual({ skipped: false, samples: 0, logs: 0, reflections: 0, records: 1 });
+
+    expect(syncExperimentRecords).toHaveBeenCalledTimes(1);
+    expect(localDb.deletePendingExperimentRecords).toHaveBeenCalledWith(['team-1_experiment_reaction_7']);
+  });
+
+  it('returns zero counts when there are no queued final records', async () => {
+    jest.mocked(localDb.getPendingExperimentRecords).mockResolvedValue([]);
+
+    await expect(syncPendingLocalData()).resolves.toEqual({ skipped: false, samples: 0, logs: 0, reflections: 0, records: 0 });
     expect(syncExperimentRecords).not.toHaveBeenCalled();
   });
 });

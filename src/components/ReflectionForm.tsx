@@ -18,6 +18,7 @@ interface Props {
   attachmentQuestions?: Record<string, string>;
   ratingPlacement?: 'top' | 'bottom';
   ratingStyle?: 'numbers' | 'stars';
+  results?: Record<string, unknown>;
 }
 
 function ScaleButton({
@@ -61,17 +62,25 @@ export function ReflectionForm({
   attachmentQuestions = {},
   ratingPlacement = 'top',
   ratingStyle = 'numbers',
+  results,
 }: Props) {
   const { t } = useTranslation();
   const colors = useThemeColors();
-  const reflection = useActivityReflection(activityId, teamId, questions);
+  const reflection = useActivityReflection(activityId, teamId, questions, results);
   const [focusedQuestion, setFocusedQuestion] = useState('');
   const [saved, setSaved] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
-    await reflection.save();
-    setSaved(true);
-    setTimeout(onSaved, 220);
+    if (isSaving || saved) return;
+    setIsSaving(true);
+    try {
+      await reflection.save();
+      setSaved(true);
+      setTimeout(onSaved, 220);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const pickImage = async (question: string) => {
@@ -161,9 +170,9 @@ export function ReflectionForm({
 
       <ScaleButton
         accessibilityLabel={t('common.saveReflection')}
-        disabled={!reflection.isValid}
+        disabled={!reflection.isValid || isSaving || saved}
         onPress={handleSave}
-        style={[styles.saveButton, !reflection.isValid && styles.disabled]}
+        style={[styles.saveButton, (!reflection.isValid || isSaving || saved) && styles.disabled]}
       >
         <Text style={styles.saveText}>{saved ? '✓' : t('common.saveReflection')}</Text>
       </ScaleButton>

@@ -1,10 +1,11 @@
-import { ActivityLog, ActivityReflection, SensorSample, TeamProfile } from '../types/models';
+import { ActivityLog, ActivityReflection, ExperimentRecord, SensorSample, TeamProfile } from '../types/models';
 
 let teams: Record<string, TeamProfile> = {};
 let samples: SensorSample[] = [];
 let logs: ActivityLog[] = [];
 let reflections: ActivityReflection[] = [];
 let drafts: Record<string, Record<string, unknown>> = {};
+let pendingRecords: ExperimentRecord[] = [];
 
 function readStore<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -23,6 +24,7 @@ export async function initializeDatabase() {
   logs = readStore('stemm.logs', []);
   reflections = readStore('stemm.reflections', []);
   drafts = readStore('stemm.experimentDrafts', {});
+  pendingRecords = readStore('stemm.pendingExperimentRecords', []);
 }
 
 export async function saveTeamProfile(profile: TeamProfile) {
@@ -54,8 +56,10 @@ export async function markSensorSamplesSynced(ids: number[]) {
 }
 
 export async function insertActivityReflection(reflection: ActivityReflection) {
-  reflections = [...reflections, { ...reflection, id: reflections.length + 1, synced: reflection.synced ?? false }];
+  const id = reflections.length + 1;
+  reflections = [...reflections, { ...reflection, id, synced: reflection.synced ?? false }];
   writeStore('stemm.reflections', reflections);
+  return id;
 }
 
 export async function insertActivityLog(log: ActivityLog) {
@@ -100,4 +104,19 @@ export async function deleteExperimentDraft(activityId: string, teamId: string) 
   delete nextDrafts[getExperimentDraftId(activityId, teamId)];
   drafts = nextDrafts;
   writeStore('stemm.experimentDrafts', drafts);
+}
+
+export async function queueExperimentRecord(record: ExperimentRecord) {
+  pendingRecords = [record, ...pendingRecords.filter((item) => item.id !== record.id)];
+  writeStore('stemm.pendingExperimentRecords', pendingRecords);
+}
+
+export async function getPendingExperimentRecords(limit = 100) {
+  return pendingRecords.slice(0, limit);
+}
+
+export async function deletePendingExperimentRecords(ids: string[]) {
+  const idSet = new Set(ids);
+  pendingRecords = pendingRecords.filter((record) => !idSet.has(record.id));
+  writeStore('stemm.pendingExperimentRecords', pendingRecords);
 }

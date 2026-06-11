@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
-import { ActivityLog, ActivityReflection, SensorSample, TeamProfile } from '../types/models';
+import { ActivityLog, ActivityReflection, ExperimentRecord, SensorSample, TeamProfile } from '../types/models';
 
 const DB_NAME = 'stemm_lab.db';
 
@@ -60,6 +60,11 @@ export async function initializeDatabase() {
       team_id TEXT NOT NULL,
       payload_json TEXT NOT NULL,
       updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS pending_experiment_records (
+      id TEXT PRIMARY KEY NOT NULL,
+      payload_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL
     );
   `);
 }
@@ -201,11 +206,12 @@ function mapSensorRow(row: {
 
 export async function insertActivityReflection(reflection: ActivityReflection) {
   const db = await getDb();
-  await db.runAsync(
+  const result = await db.runAsync(
     `INSERT INTO activity_reflections (activity_id, team_id, rating, answers_json, timestamp, synced)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [reflection.activityId, reflection.teamId, reflection.rating, JSON.stringify(reflection.answers), reflection.timestamp, reflection.synced ? 1 : 0],
   );
+  return result.lastInsertRowId;
 }
 
 export async function insertActivityLog(log: ActivityLog) {
@@ -295,4 +301,30 @@ export async function getExperimentDraft(activityId: string, teamId: string) {
 export async function deleteExperimentDraft(activityId: string, teamId: string) {
   const db = await getDb();
   await db.runAsync('DELETE FROM experiment_drafts WHERE id = ?', [getExperimentDraftId(activityId, teamId)]);
+}
+
+export async function queueExperimentRecord(record: ExperimentRecord) {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO pending_experiment_records (id, payload_json, created_at)
+     VALUES (?, ?, ?)`,
+    [record.id, JSON.stringify(record), Date.now()],
+  );
+}
+
+export async function getPendingExperimentRecords(limit = 100) {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: string; payload_json: string }>(
+    'SELECT id, payload_json FROM pending_experiment_records ORDER BY created_at ASC LIMIT ?',
+    [limit],
+  );
+  return rows.map((row) => JSON.parse(row.payload_json) as ExperimentRecord);
+}
+
+export async function deletePendingExperimentRecords(ids: string[]) {
+  if (ids.length === 0) return;
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    await Promise.all(ids.map((id) => db.runAsync('DELETE FROM pending_experiment_records WHERE id = ?', [id])));
+  });
 }

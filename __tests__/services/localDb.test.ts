@@ -1,11 +1,11 @@
 import * as SQLite from 'expo-sqlite';
 
-import { deleteExperimentDraft, getExperimentDraft, getTeamProfile, initializeDatabase, insertActivityLog, insertActivityReflection, insertSensorSample, saveExperimentDraft, saveTeamProfile } from '../../src/services/localDb';
+import { deleteExperimentDraft, deletePendingExperimentRecords, getExperimentDraft, getPendingExperimentRecords, getTeamProfile, initializeDatabase, insertActivityLog, insertActivityReflection, insertSensorSample, queueExperimentRecord, saveExperimentDraft, saveTeamProfile } from '../../src/services/localDb';
 
 describe('localDb', () => {
   const db = {
     execAsync: jest.fn(async () => undefined),
-    runAsync: jest.fn(async () => undefined),
+    runAsync: jest.fn(async () => ({ lastInsertRowId: 1 })),
     getFirstAsync: jest.fn(async () => null),
     getAllAsync: jest.fn(async () => []),
     withTransactionAsync: jest.fn(async (task: () => Promise<void>) => task()),
@@ -24,6 +24,7 @@ describe('localDb', () => {
     expect(schemaSql).toContain('CREATE TABLE IF NOT EXISTS team_profiles');
     expect(schemaSql).toContain('CREATE TABLE IF NOT EXISTS sensor_samples');
     expect(schemaSql).toContain('CREATE TABLE IF NOT EXISTS experiment_drafts');
+    expect(schemaSql).toContain('CREATE TABLE IF NOT EXISTS pending_experiment_records');
   });
 
   it('saves and maps a team profile', async () => {
@@ -75,5 +76,31 @@ describe('localDb', () => {
     await deleteExperimentDraft('sound', 'team-1');
 
     expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM experiment_drafts WHERE id = ?', ['team-1:sound']);
+  });
+
+  it('queues, loads, and deletes complete pending experiment records', async () => {
+    const record = {
+      id: 'team-1_experiment_reaction_1',
+      teamId: 'team-1',
+      activityId: 'reaction',
+      score: 5,
+      timestamp: 10,
+      details: { type: 'experiment_record' },
+    };
+
+    await queueExperimentRecord(record);
+
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT OR REPLACE INTO pending_experiment_records'),
+      expect.arrayContaining([record.id, JSON.stringify(record)]),
+    );
+
+    (db.getAllAsync as jest.Mock).mockResolvedValueOnce([{ id: record.id, payload_json: JSON.stringify(record) }]);
+
+    await expect(getPendingExperimentRecords()).resolves.toEqual([record]);
+
+    await deletePendingExperimentRecords([record.id]);
+
+    expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM pending_experiment_records WHERE id = ?', [record.id]);
   });
 });

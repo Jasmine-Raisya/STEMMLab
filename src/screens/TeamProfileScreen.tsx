@@ -182,7 +182,7 @@ function ExperimentRecordPreview({ colors, onPress, record }: { colors: ReturnTy
 }
 
 function ExperimentRecordModal({ colors, onClose, record }: { colors: ReturnType<typeof useThemeColors>; onClose: () => void; record: ExperimentRecord | null }) {
-  const detailEntries = useMemo(() => flattenDetails(record?.details), [record]);
+  const detailSections = useMemo(() => buildDetailSections(record?.details), [record]);
 
   return (
     <Modal animationType="slide" onRequestClose={onClose} transparent visible={Boolean(record)}>
@@ -208,14 +208,19 @@ function ExperimentRecordModal({ colors, onClose, record }: { colors: ReturnType
                 <DetailTile colors={colors} label="Score" value={formatScore(record.score)} />
               </View>
 
-              <Text style={[styles.detailTitle, { color: colors.heading }]}>Details</Text>
-              {detailEntries.length === 0 ? (
+              <Text style={[styles.detailTitle, { color: colors.heading }]}>Experiment Details</Text>
+              {detailSections.length === 0 ? (
                 <Text style={[styles.stateText, { color: colors.muted }]}>No additional details saved.</Text>
               ) : (
-                detailEntries.map((entry) => (
-                  <View key={entry.label} style={[styles.detailRow, { borderBottomColor: colors.border }]}>
-                    <Text style={[styles.detailLabel, { color: colors.muted }]}>{entry.label}</Text>
-                    <Text style={[styles.detailValue, { color: colors.text }]}>{entry.value}</Text>
+                detailSections.map((section) => (
+                  <View key={section.title} style={[styles.detailSection, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Text style={[styles.detailSectionTitle, { color: colors.heading }]}>{section.title}</Text>
+                    {section.rows.map((entry) => (
+                      <View key={`${section.title}-${entry.label}`} style={[styles.detailRow, { borderBottomColor: colors.border }]}>
+                        <Text style={[styles.detailLabel, { color: colors.muted }]}>{entry.label}</Text>
+                        <Text style={[styles.detailValue, { color: colors.text }]}>{entry.value}</Text>
+                      </View>
+                    ))}
                   </View>
                 ))
               )}
@@ -281,21 +286,115 @@ function formatScore(score: number) {
   return Number.isInteger(score) ? String(score) : score.toFixed(1);
 }
 
-function flattenDetails(details?: Record<string, unknown>) {
+function buildDetailSections(details?: Record<string, unknown>) {
   if (!details) return [];
-  return Object.entries(details)
-    .filter(([key]) => key !== 'localRowId')
-    .map(([key, value]) => ({
-      label: key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^./, (character) => character.toUpperCase()),
-      value: formatDetailValue(value),
-    }));
+
+  const sections: Array<{ title: string; rows: Array<{ label: string; value: string }> }> = [];
+  const results = details.results;
+  const reflection = details.reflection;
+  const sensorSummary = details.sensorSummary;
+  const legacySensorData = details.sensorData;
+
+  const resultRows = flattenRecord(results).filter((entry) => entry.value !== '-');
+  if (resultRows.length > 0) {
+    sections.push({ title: 'Results', rows: resultRows });
+  }
+
+  if (isRecord(reflection)) {
+    const reflectionRows: Array<{ label: string; value: string }> = [];
+    if (typeof reflection.rating === 'number') {
+      reflectionRows.push({ label: 'Rating', value: `${reflection.rating}/5` });
+    }
+    reflectionRows.push(...flattenRecord(reflection.answers));
+    if (reflectionRows.length > 0) {
+      sections.push({ title: 'Reflection', rows: reflectionRows });
+    }
+  }
+
+  const sensorRows = buildSensorRows(sensorSummary, legacySensorData);
+  if (sensorRows.length > 0) {
+    sections.push({ title: 'Sensor Summary', rows: sensorRows });
+  }
+
+  const fallbackRows = Object.entries(details)
+    .filter(([key]) => !['localRowId', 'reflection', 'results', 'sensorData', 'sensorSummary', 'type'].includes(key))
+    .map(([key, value]) => ({ label: formatLabel(key), value: formatDetailValue(value) }));
+
+  if (sections.length === 0 && fallbackRows.length > 0) {
+    sections.push({ title: 'Details', rows: fallbackRows });
+  }
+
+  return sections;
+}
+
+function buildSensorRows(sensorSummary: unknown, sensorData: unknown) {
+  const rows: Array<{ label: string; value: string }> = [];
+
+  if (isRecord(sensorSummary)) {
+    if (typeof sensorSummary.count === 'number') {
+      rows.push({ label: 'Samples captured', value: String(sensorSummary.count) });
+    }
+
+    if (Array.isArray(sensorSummary.metrics)) {
+      sensorSummary.metrics.forEach((metric) => {
+        if (!isRecord(metric)) return;
+        const name = typeof metric.metric === 'string' ? metric.metric : 'Metric';
+        rows.push({
+          label: formatLabel(name),
+          value: [
+            typeof metric.average === 'number' ? `avg ${formatScore(metric.average)}` : null,
+            typeof metric.min === 'number' ? `min ${formatScore(metric.min)}` : null,
+            typeof metric.max === 'number' ? `max ${formatScore(metric.max)}` : null,
+            typeof metric.count === 'number' ? `${metric.count} samples` : null,
+          ].filter(Boolean).join(' | '),
+        });
+      });
+    }
+  }
+
+  if (rows.length === 0 && Array.isArray(sensorData)) {
+    rows.push({ label: 'Samples captured', value: String(sensorData.length) });
+  }
+
+  return rows;
+}
+
+function flattenRecord(value: unknown, prefix = ''): Array<{ label: string; value: string }> {
+  if (!isRecord(value)) return [];
+
+  return Object.entries(value).flatMap(([key, entry]) => {
+    const label = prefix ? `${prefix} ${formatLabel(key)}` : formatLabel(key);
+    if (Array.isArray(entry)) {
+      return [{ label, value: summarizeArray(entry) }];
+    }
+    if (isRecord(entry)) {
+      return flattenRecord(entry, label);
+    }
+    return [{ label, value: formatDetailValue(entry) }];
+  });
+}
+
+function summarizeArray(value: unknown[]) {
+  if (value.length === 0) return 'None';
+  if (value.every((entry) => isRecord(entry))) {
+    return `${value.length} item${value.length === 1 ? '' : 's'}`;
+  }
+  return value.map(formatDetailValue).join(', ');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+function formatLabel(value: string) {
+  return value.replace(/([A-Z])/g, ' $1').replace(/[_-]/g, ' ').replace(/^./, (character) => character.toUpperCase());
 }
 
 function formatDetailValue(value: unknown): string {
   if (value === null || value === undefined) return '-';
   if (typeof value === 'string') return value;
   if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return JSON.stringify(value, null, 2);
+  return 'Saved';
 }
 
 const styles = StyleSheet.create({
@@ -356,6 +455,8 @@ const styles = StyleSheet.create({
   detailGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 18 },
   detailTile: { borderRadius: 8, borderWidth: 1, flexBasis: '48%', flexGrow: 1, padding: 12 },
   detailTitle: { fontSize: 18, fontWeight: '900', marginBottom: 10 },
+  detailSection: { borderRadius: 8, borderWidth: 1, marginBottom: 12, paddingHorizontal: 12, paddingTop: 12 },
+  detailSectionTitle: { fontSize: 16, fontWeight: '900', marginBottom: 6 },
   detailLabel: { fontSize: 12, fontWeight: '800', marginBottom: 4, textTransform: 'uppercase' },
   detailTileValue: { fontSize: 14, fontWeight: '800' },
   detailRow: { borderBottomWidth: 1, paddingVertical: 10 },

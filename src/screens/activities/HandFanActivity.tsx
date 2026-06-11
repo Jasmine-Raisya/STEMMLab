@@ -362,13 +362,22 @@ function WriteUpScreen({ iterations, onBack }: { iterations: FanIteration[]; onB
   const colors = useThemeColors();
   const baseFields = translatedArray(t('handFan.writeUpFields', { returnObjects: true }));
   const iterationFields = iterations.map((iteration) => `Explain the performance of ${iteration.name} using its measured bend angle and estimated force (${iteration.force ?? '-'} N).`);
+  const values = iterations.map((iteration) => iteration.bendAngle).filter((value): value is number => typeof value === 'number');
+  const averageBendAngle = values.length ? Number((values.reduce((sum, value) => sum + value, 0) / values.length).toFixed(1)) : null;
+  const best = [...iterations].filter((iteration) => typeof iteration.bendAngle === 'number').sort((a, b) => (b.bendAngle ?? 0) - (a.bendAngle ?? 0))[0] ?? null;
 
   return (
     <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
       <Text style={[s.heading, { color: colors.heading }]}>{t('common.writeUp')}</Text>
       <Text style={[s.body, { color: colors.text, marginBottom: 16 }]}>{t('handFan.writeSub')}</Text>
       <SpeechButton text={[...baseFields, ...iterationFields]} style={s.speech} />
-      <ReflectionForm activityId="handFan" teamId={team?.id ?? 'local'} questions={[...baseFields, ...iterationFields]} onSaved={onBack} />
+      <ReflectionForm
+        activityId="handFan"
+        teamId={team?.id ?? 'local'}
+        questions={[...baseFields, ...iterationFields]}
+        results={{ iterations, averageBendAngle, best }}
+        onSaved={onBack}
+      />
     </ScrollView>
   );
 }

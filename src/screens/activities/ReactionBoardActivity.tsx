@@ -286,18 +286,27 @@ function GlobalRankScreen({ logs, onNext }: { logs: ReactionLog[]; onNext: () =>
   );
 }
 
-function WriteUpScreen({ onBack }: { onBack: () => void }) {
+function WriteUpScreen({ logs, onBack, traceAccuracyValue }: { logs: ReactionLog[]; onBack: () => void; traceAccuracyValue: number | null }) {
   const { t } = useTranslation();
   const { team } = useTeam();
   const colors = useThemeColors();
   const fields = translatedArray(t('reaction.writeUpFields', { returnObjects: true }));
+  const bestTime = logs.length ? Math.min(...logs.map((log) => log.timeMs)) : null;
+  const averageTime = logs.length ? Math.round(logs.reduce((sum, log) => sum + log.timeMs, 0) / logs.length) : null;
+  const results = {
+    tapLogs: logs,
+    bestTime,
+    averageTime,
+    traceAccuracy: traceAccuracyValue,
+    attempts: logs.length,
+  };
 
   return (
     <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
       <Text style={[s.heading, { color: colors.heading }]}>{t('common.writeUp')}</Text>
       <Text style={[s.body, { color: colors.text, marginBottom: 16 }]}>{t('reaction.writeSub')}</Text>
       <SpeechButton text={fields} style={s.speech} />
-      <ReflectionForm activityId="reaction" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
+      <ReflectionForm activityId="reaction" teamId={team?.id ?? 'local'} questions={fields} results={results} onSaved={onBack} />
     </ScrollView>
   );
 }
@@ -319,7 +328,7 @@ export function ReactionBoardActivity({ onBack }: Props) {
         {step === 3 && <TracingPathScreen onTraceResult={setTraceAccuracyValue} onNext={() => setStep(4)} />}
         {step === 4 && <HandStatsScreen logs={logs} traceAccuracyValue={traceAccuracyValue} onNext={() => setStep(5)} />}
         {step === 5 && <GlobalRankScreen logs={logs} onNext={() => setStep(6)} />}
-        {step === 6 && <WriteUpScreen onBack={onBack} />}
+        {step === 6 && <WriteUpScreen logs={logs} traceAccuracyValue={traceAccuracyValue} onBack={onBack} />}
       </View>
     </View>
   );

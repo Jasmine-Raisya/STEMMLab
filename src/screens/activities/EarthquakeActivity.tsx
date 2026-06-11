@@ -254,13 +254,20 @@ function ReflectionScreen({ iterations, onBack }: { iterations: EarthquakeIterat
   const colors = useThemeColors();
   const fields = translatedArray(t('earthquake.writeUpFields', { returnObjects: true }));
   const iterationFields = iterations.map((iteration) => `Explain why ${iteration.name} moved ${iteration.movementCm} cm and turned ${iteration.turnDegrees} degrees during the shake.`);
+  const ranked = [...iterations].sort((a, b) => a.movementCm + a.turnDegrees - (b.movementCm + b.turnDegrees));
 
   return (
     <ScrollView style={[s.pad, { backgroundColor: colors.background }]} contentContainerStyle={s.scrollContent}>
       <Text style={s.heading}>{t('earthquake.reflection')}</Text>
       <Text style={[s.body, { marginBottom: 16 }]}>{t('earthquake.reflectionSub')}</Text>
       <SpeechButton text={[...fields, ...iterationFields]} style={s.speech} />
-      <ReflectionForm activityId="earthquake" teamId={team?.id ?? 'local'} questions={[...fields, ...iterationFields]} onSaved={onBack} />
+      <ReflectionForm
+        activityId="earthquake"
+        teamId={team?.id ?? 'local'}
+        questions={[...fields, ...iterationFields]}
+        results={{ iterations, ranked }}
+        onSaved={onBack}
+      />
     </ScrollView>
   );
 }

@@ -267,18 +267,23 @@ function ComparisonScreen({ predictions, actuals, onNext }: { predictions: Recor
   );
 }
 
-function MedicalReflectionScreen({ onBack }: { onBack: () => void }) {
+function MedicalReflectionScreen({ actuals, onBack, predictions }: { actuals: Record<BreathKey, number | null>; onBack: () => void; predictions: Record<BreathKey, string> }) {
   const { t } = useTranslation();
   const colors = useThemeColors();
   const { team } = useTeam();
   const fields = translatedArray(t('breathing.writeUpFields', { returnObjects: true }));
+  const results = {
+    predictions,
+    actuals,
+    actions,
+  };
 
   return (
     <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
       <Text style={[styles.heading, { color: colors.heading }]}>{t('breathing.medicalReflection')}</Text>
       <Text style={[styles.body, { color: colors.text, marginBottom: 16 }]}>{t('breathing.medicalSub')}</Text>
       <SpeechButton text={fields} style={styles.speech} />
-      <ReflectionForm activityId="breathing" teamId={team?.id ?? 'local'} questions={fields} onSaved={onBack} />
+      <ReflectionForm activityId="breathing" teamId={team?.id ?? 'local'} questions={fields} results={results} onSaved={onBack} />
     </ScrollView>
   );
 }
@@ -323,7 +328,7 @@ export function BreathingPaceActivity({ onBack }: Props) {
         {step === 5 && <StarJumpScreen resetKey={movementResetKey} onNext={() => setStep(6)} />}
         {step === 6 && <BreathingRecordScreen label="After exercise 2 (star jumps)" onNext={(breaths) => saveActual('starJumps', breaths, 7)} />}
         {step === 7 && <ComparisonScreen predictions={predictions} actuals={actuals} onNext={() => setStep(8)} />}
-        {step === 8 && <MedicalReflectionScreen onBack={onBack} />}
+        {step === 8 && <MedicalReflectionScreen predictions={predictions} actuals={actuals} onBack={onBack} />}
       </View>
     </View>
   );

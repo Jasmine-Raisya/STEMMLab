@@ -503,12 +503,14 @@ function LeaderboardScreen({ iterations, onNext }: { iterations: Iteration[]; on
   );
 }
 
-function WriteUpScreen({ onBack }: { onBack: () => void }) {
+function WriteUpScreen({ iterations, onBack }: { iterations: Iteration[]; onBack: () => void }) {
   const { t } = useTranslation();
   const { team } = useTeam();
   const colors = useThemeColors();
   const fields = translatedArray(t('parachute.writeUpFields', { returnObjects: true }));
   const sketchQuestion = t('parachute.submitSketch');
+  const averageTime = iterations.length ? Number((iterations.reduce((sum, iteration) => sum + iteration.time, 0) / iterations.length).toFixed(2)) : null;
+  const best = [...iterations].sort((a, b) => a.time - b.time)[0] ?? null;
 
   return (
     <ScrollView style={[styles.pad, { backgroundColor: colors.background }]} contentContainerStyle={styles.scrollContent}>
@@ -521,6 +523,7 @@ function WriteUpScreen({ onBack }: { onBack: () => void }) {
         questions={fields}
         ratingPlacement="bottom"
         ratingStyle="stars"
+        results={{ iterations, averageTime, best }}
         teamId={team?.id ?? 'local'}
         onSaved={onBack}
       />
@@ -572,7 +575,7 @@ export function ParachuteActivity({ onBack }: Props) {
         {step === 4 && <PhysicsCalculatorScreen iteration={currentResult} onNext={() => setStep(5)} />}
         {step === 5 && <IterationLogScreen iterations={visibleIterations} onCreateNew={handleCreateIteration} onFinish={handleFinishIterations} />}
         {step === 6 && <LeaderboardScreen iterations={visibleIterations} onNext={() => setStep(7)} />}
-        {step === 7 && <WriteUpScreen onBack={onBack} />}
+        {step === 7 && <WriteUpScreen iterations={visibleIterations} onBack={onBack} />}
       </View>
     </View>
   );
