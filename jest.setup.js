@@ -147,3 +147,15 @@ jest.mock('react-native-maps', () => {
   MockMap.Marker = (props) => React.createElement(View, props, props.children);
   return { __esModule: true, default: MockMap, Marker: MockMap.Marker };
 });
+
+jest.mock('react-native-google-mobile-ads', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+  return {
+    BannerAd: (props) => React.createElement(View, props),
+    BannerAdSize: { LARGE_ANCHORED_ADAPTIVE_BANNER: 'LARGE_ANCHORED_ADAPTIVE_BANNER' },
+    TestIds: { ADAPTIVE_BANNER: 'test-adaptive-banner' },
+    __esModule: true,
+    default: jest.fn(() => ({ initialize: jest.fn(async () => undefined) })),
+  };
+});
