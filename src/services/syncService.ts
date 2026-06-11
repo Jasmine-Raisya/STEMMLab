@@ -5,12 +5,10 @@ import { syncExperimentRecords } from './firestoreService';
 import {
   getUnsyncedActivityLogs,
   getUnsyncedActivityReflections,
-  getUnsyncedSensorSamples,
   markActivityLogsSynced,
   markActivityReflectionsSynced,
-  markSensorSamplesSynced,
 } from './localDb';
-import { ActivityId, ActivityLog, ActivityReflection, ExperimentRecord, SensorSample, TeamProfile } from '../types/models';
+import { ActivityId, ActivityLog, ActivityReflection, ExperimentRecord, TeamProfile } from '../types/models';
 
 const TEAM_PROFILE_BACKUP_KEY = 'stemm.activeTeamProfile';
 const FALLBACK_TEAM_ID = 'unknown-team';
@@ -23,7 +21,7 @@ type ActivityLogRow = {
   timestamp: number;
 };
 
-type ExperimentRecordKind = 'sensor_sample' | 'activity_result' | 'reflection';
+type ExperimentRecordKind = 'activity_result' | 'reflection';
 
 function sanitizeIdPart(value: string | number | undefined) {
   return String(value ?? 'unknown').trim().toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/^-|-$/g, '') || 'unknown';
@@ -45,22 +43,6 @@ function buildOwnerFields(team: TeamProfile | null, explicitTeamId?: string) {
     authUid: team?.authUid,
     representativeEmail: team?.representativeEmail,
     teamName: team?.teamName,
-  };
-}
-
-function sensorSampleToExperimentRecord(sample: SensorSample, team: TeamProfile | null): ExperimentRecord {
-  const owner = buildOwnerFields(team);
-  return {
-    ...owner,
-    id: createExperimentRecordId(owner.teamId, 'sensor_sample', sample.activityId, sample.id, sample.timestamp),
-    activityId: sample.activityId,
-    score: sample.value,
-    timestamp: sample.timestamp,
-    details: {
-      type: 'sensor_sample',
-      localRowId: sample.id,
-      sensorData: [sample],
-    },
   };
 }
 
@@ -118,13 +100,6 @@ export async function syncPendingLocalData() {
 
   const team = await getActiveTeamProfile();
 
-  const samples = await getUnsyncedSensorSamples();
-  const sampleIds = samples.map((sample) => sample.id).filter((id): id is number => typeof id === 'number');
-  if (samples.length > 0) {
-    await syncExperimentRecords(samples.map((sample) => sensorSampleToExperimentRecord(sample, team)));
-    await markSensorSamplesSynced(sampleIds);
-  }
-
   const logs = await getUnsyncedActivityLogs();
   if (logs.length > 0) {
     await syncExperimentRecords(logs.map((log) => activityLogToExperimentRecord(log, team)));
@@ -138,5 +113,5 @@ export async function syncPendingLocalData() {
     await markActivityReflectionsSynced(reflectionIds);
   }
 
-  return { skipped: false, samples: samples.length, logs: logs.length, reflections: reflections.length };
+  return { skipped: false, samples: 0, logs: logs.length, reflections: reflections.length };
 }

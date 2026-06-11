@@ -7,7 +7,7 @@ export function AdMobBanner() {
   const unitId = process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID;
 
   return (
-    <View style={styles.wrap} accessibilityLabel="Advertisement banner placeholder">
+    <View style={styles.wrap} accessibilityLabel="Advertisement banner placeholder" testID="admob_banner">
       <Text style={styles.label}>AdMob Banner</Text>
       <Text style={styles.unit}>{unitId ? 'Configured' : 'Set EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID'}</Text>
     </View>

@@ -32,20 +32,21 @@ describe('syncService', () => {
     }));
   });
 
-  it('syncs local samples, logs, and reflections into experiment_records shape', async () => {
+  it('syncs completed logs and reflections into experiment_records without uploading raw sensor samples', async () => {
     jest.mocked(localDb.getUnsyncedSensorSamples).mockResolvedValue([{ id: 1, activityId: 'earthquake', metric: 'acceleration', value: 1.8, timestamp: 10 }]);
     jest.mocked(localDb.getUnsyncedActivityLogs).mockResolvedValue([{ id: 2, activity_id: 'parachute', team_id: 'team-1', payload_json: '{"score":7}', timestamp: 20, synced: 0 }]);
     jest.mocked(localDb.getUnsyncedActivityReflections).mockResolvedValue([{ id: 3, activityId: 'reaction', teamId: 'team-1', rating: 5, answers: { q: 'a' }, timestamp: 30, synced: false }]);
 
-    await expect(syncPendingLocalData()).resolves.toEqual({ skipped: false, samples: 1, logs: 1, reflections: 1 });
+    await expect(syncPendingLocalData()).resolves.toEqual({ skipped: false, samples: 0, logs: 1, reflections: 1 });
 
-    expect(syncExperimentRecords).toHaveBeenCalledTimes(3);
+    expect(localDb.getUnsyncedSensorSamples).not.toHaveBeenCalled();
+    expect(localDb.markSensorSamplesSynced).not.toHaveBeenCalled();
+    expect(syncExperimentRecords).toHaveBeenCalledTimes(2);
     expect(jest.mocked(syncExperimentRecords).mock.calls[0][0][0]).toMatchObject({
       teamId: 'team-1',
-      activityId: 'earthquake',
-      details: expect.objectContaining({ type: 'sensor_sample' }),
+      activityId: 'parachute',
+      details: expect.objectContaining({ type: 'activity_result' }),
     });
-    expect(localDb.markSensorSamplesSynced).toHaveBeenCalledWith([1]);
     expect(localDb.markActivityLogsSynced).toHaveBeenCalledWith([2]);
     expect(localDb.markActivityReflectionsSynced).toHaveBeenCalledWith([3]);
   });

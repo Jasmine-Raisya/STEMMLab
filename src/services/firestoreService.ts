@@ -34,6 +34,7 @@ export async function fetchExperimentRecordsForTeam(teamId: string, maxRecords =
   const snapshot = await getDocs(recordsQuery);
   return snapshot.docs
     .map((entry) => entry.data() as ExperimentRecord)
+    .filter((record) => record.details?.type !== 'sensor_sample')
     .sort((left, right) => right.timestamp - left.timestamp);
 }
 

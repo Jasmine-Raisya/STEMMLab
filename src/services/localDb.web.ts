@@ -4,6 +4,7 @@ let teams: Record<string, TeamProfile> = {};
 let samples: SensorSample[] = [];
 let logs: ActivityLog[] = [];
 let reflections: ActivityReflection[] = [];
+let drafts: Record<string, Record<string, unknown>> = {};
 
 function readStore<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -21,6 +22,7 @@ export async function initializeDatabase() {
   samples = readStore('stemm.samples', []);
   logs = readStore('stemm.logs', []);
   reflections = readStore('stemm.reflections', []);
+  drafts = readStore('stemm.experimentDrafts', {});
 }
 
 export async function saveTeamProfile(profile: TeamProfile) {
@@ -78,4 +80,24 @@ export async function markActivityLogsSynced(ids: number[]) {
   const idSet = new Set(ids);
   logs = logs.map((log) => (log.id && idSet.has(log.id) ? { ...log, synced: true } : log));
   writeStore('stemm.logs', logs);
+}
+
+function getExperimentDraftId(activityId: string, teamId: string) {
+  return `${teamId}:${activityId}`;
+}
+
+export async function saveExperimentDraft(activityId: string, teamId: string, payload: Record<string, unknown>) {
+  drafts = { ...drafts, [getExperimentDraftId(activityId, teamId)]: payload };
+  writeStore('stemm.experimentDrafts', drafts);
+}
+
+export async function getExperimentDraft(activityId: string, teamId: string) {
+  return drafts[getExperimentDraftId(activityId, teamId)] ?? null;
+}
+
+export async function deleteExperimentDraft(activityId: string, teamId: string) {
+  const nextDrafts = { ...drafts };
+  delete nextDrafts[getExperimentDraftId(activityId, teamId)];
+  drafts = nextDrafts;
+  writeStore('stemm.experimentDrafts', drafts);
 }

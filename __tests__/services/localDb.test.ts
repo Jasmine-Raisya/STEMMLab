@@ -1,6 +1,6 @@
 import * as SQLite from 'expo-sqlite';
 
-import { getTeamProfile, initializeDatabase, insertActivityLog, insertActivityReflection, insertSensorSample, saveTeamProfile } from '../../src/services/localDb';
+import { deleteExperimentDraft, getExperimentDraft, getTeamProfile, initializeDatabase, insertActivityLog, insertActivityReflection, insertSensorSample, saveExperimentDraft, saveTeamProfile } from '../../src/services/localDb';
 
 describe('localDb', () => {
   const db = {
@@ -23,6 +23,7 @@ describe('localDb', () => {
     const schemaSql = (db.execAsync as jest.Mock).mock.calls[0][0] as string;
     expect(schemaSql).toContain('CREATE TABLE IF NOT EXISTS team_profiles');
     expect(schemaSql).toContain('CREATE TABLE IF NOT EXISTS sensor_samples');
+    expect(schemaSql).toContain('CREATE TABLE IF NOT EXISTS experiment_drafts');
   });
 
   it('saves and maps a team profile', async () => {
@@ -57,5 +58,22 @@ describe('localDb', () => {
     await insertActivityReflection({ activityId: 'reaction', teamId: 'team-1', rating: 4, answers: { q: 'a' }, timestamp: 3 });
 
     expect(db.runAsync).toHaveBeenCalledTimes(3);
+  });
+
+  it('stores, loads, and deletes local experiment drafts', async () => {
+    await saveExperimentDraft('sound', 'team-1', { rating: 4, answers: { q: 'draft' } });
+
+    expect(db.runAsync).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT OR REPLACE INTO experiment_drafts'),
+      expect.arrayContaining(['team-1:sound', 'sound', 'team-1']),
+    );
+
+    (db.getFirstAsync as jest.Mock).mockResolvedValueOnce({ payload_json: '{"rating":4,"answers":{"q":"draft"}}' });
+
+    await expect(getExperimentDraft('sound', 'team-1')).resolves.toEqual({ rating: 4, answers: { q: 'draft' } });
+
+    await deleteExperimentDraft('sound', 'team-1');
+
+    expect(db.runAsync).toHaveBeenCalledWith('DELETE FROM experiment_drafts WHERE id = ?', ['team-1:sound']);
   });
 });

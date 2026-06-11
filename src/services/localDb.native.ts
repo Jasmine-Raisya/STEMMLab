@@ -54,6 +54,13 @@ export async function initializeDatabase() {
       timestamp INTEGER NOT NULL,
       synced INTEGER NOT NULL DEFAULT 0
     );
+    CREATE TABLE IF NOT EXISTS experiment_drafts (
+      id TEXT PRIMARY KEY NOT NULL,
+      activity_id TEXT NOT NULL,
+      team_id TEXT NOT NULL,
+      payload_json TEXT NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
   `);
 }
 
@@ -260,4 +267,32 @@ export async function markActivityLogsSynced(ids: number[]) {
   await db.withTransactionAsync(async () => {
     await Promise.all(ids.map((id) => db.runAsync('UPDATE activity_logs SET synced = 1 WHERE id = ?', [id])));
   });
+}
+
+function getExperimentDraftId(activityId: string, teamId: string) {
+  return `${teamId}:${activityId}`;
+}
+
+export async function saveExperimentDraft(activityId: string, teamId: string, payload: Record<string, unknown>) {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO experiment_drafts (id, activity_id, team_id, payload_json, updated_at)
+     VALUES (?, ?, ?, ?, ?)`,
+    [getExperimentDraftId(activityId, teamId), activityId, teamId, JSON.stringify(payload), Date.now()],
+  );
+}
+
+export async function getExperimentDraft(activityId: string, teamId: string) {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ payload_json: string }>(
+    'SELECT payload_json FROM experiment_drafts WHERE id = ?',
+    [getExperimentDraftId(activityId, teamId)],
+  );
+
+  return row ? (JSON.parse(row.payload_json) as Record<string, unknown>) : null;
+}
+
+export async function deleteExperimentDraft(activityId: string, teamId: string) {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM experiment_drafts WHERE id = ?', [getExperimentDraftId(activityId, teamId)]);
 }

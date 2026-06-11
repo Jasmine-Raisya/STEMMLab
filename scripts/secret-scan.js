@@ -24,6 +24,7 @@ const blockedExtensions = new Set(['.jks', '.keystore', '.p12', '.p8', '.pem']);
 const ignoredDirs = new Set([
   '.git',
   '.expo',
+  '.codex-backups',
   'android',
   'build',
   'coverage',

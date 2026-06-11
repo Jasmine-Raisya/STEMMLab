@@ -5,7 +5,10 @@ import { ReflectionForm } from '../../src/components/ReflectionForm';
 import { insertActivityReflection } from '../../src/services/localDb';
 
 jest.mock('../../src/services/localDb', () => ({
+  deleteExperimentDraft: jest.fn(async () => undefined),
+  getExperimentDraft: jest.fn(async () => null),
   insertActivityReflection: jest.fn(async () => undefined),
+  saveExperimentDraft: jest.fn(async () => undefined),
 }));
 
 jest.mock('../../src/services/syncService', () => ({

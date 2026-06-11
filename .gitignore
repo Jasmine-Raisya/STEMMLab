@@ -105,3 +105,4 @@ keys.properties
 signing.properties
 node_modules/
 .expo/
+.codex-backups/
